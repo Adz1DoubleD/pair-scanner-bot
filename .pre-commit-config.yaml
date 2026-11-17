@@ -1,0 +1,28 @@
+default_install_hook_types: ["pre-commit"]
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: system
+        types: [python]
+      - id: max-lines
+        name: max 600 lines
+        entry: >-
+          python -c "import sys; bad = [f'{p}: {n} lines (max 600)' for p in sys.argv[1:] if (n := sum(1 for _ in open(p, 'rb'))) > 600]; print(*bad, sep=chr(10)); sys.exit(bool(bad))"
+        language: system
+        types: [python]
+        exclude: ^tests/
+      - id: no-data-files
+        name: no data, keys or wallet files
+        entry: >-
+          python -c "import sys; print('Data or key files must not be committed:', *sys.argv[1:], sep=chr(10)); sys.exit(1)"
+        language: system
+        files: (?i)(\.(csv|json|sql|db|sqlite3?|key|pem)$|(^|/)\.env$|keystore)
+        exclude: ^\.github/

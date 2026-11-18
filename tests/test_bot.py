@@ -349,8 +349,9 @@ async def test_clearing_asks_first_then_clears(monkeypatch, what, clear_fn):
 
 
 @pytest.fixture
-def start_env(monkeypatch, jq):
+def start_env(monkeypatch, jq, make_cursor, patch_session):
     monkeypatch.setattr(pair_scanner, "init_scanner_db", AsyncMock(return_value={}))
+    patch_session(pair_scanner, make_cursor(fetchone=[(12, 3)] * 5))
     monkeypatch.setattr(pair_scanner, "refresh_networks", lambda: None)
     monkeypatch.setattr(pair_scanner, "close_db", AsyncMock())
     monkeypatch.setattr(pair_scanner, "close_w3", AsyncMock())
@@ -400,4 +401,18 @@ async def test_in_test_mode_no_jobs_are_started(start_env, monkeypatch):
 
     assert start_env.jq.calls == []
     assert pair_scanner.jobs.application is start_env.host
+    await pair_scanner.stop_scanner_bot()
+
+
+@pytest.mark.asyncio
+async def test_startup_prints_one_summary_line_per_step(start_env, capsys):
+    OPTIONS.update(pairs_enabled=0, strategy_enabled=0, trading_enabled=0)
+
+    await pair_scanner.start_scanner_bot(share_with=start_env.host)
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith(
+        "✅ Pair scanner database ready: 12 pairs, 3 positions, "
+    )
+    assert lines[1] == "🚀 Pair scanner running on the host's bot (watch-only)"
     await pair_scanner.stop_scanner_bot()

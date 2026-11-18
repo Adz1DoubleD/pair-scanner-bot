@@ -21,7 +21,7 @@ from . import jobs
 from .blocks import scanner as scanner_screen
 from .blocks import settings as settings_screen
 from .blocks.balances import balances_block
-from .db import close_db, init_scanner_db
+from .db import close_db, db_session, init_scanner_db
 from .db.pairs import pairs_get_by_status
 from .health import scanner_health
 from .networks import refresh_networks
@@ -198,10 +198,19 @@ async def start_scanner_bot(share_with=None, **options):
             f"✅ Pair scanner copied from the host: {copied['settings']} settings, "
             f"{copied['pairs']} pairs, {copied['positions']} positions"
         )
+    async with db_session() as cur:
+        await cur.execute(
+            "SELECT (SELECT COUNT(*) FROM pairs), (SELECT COUNT(*) FROM positions)"
+        )
+        pairs, positions = await cur.fetchone()
+    print(
+        f"✅ Pair scanner database ready: {pairs} pairs, {positions} positions, "
+        f"{len(OPTIONS)} settings"
+    )
 
     mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
     if is_test_mode():
-        mode = "test mode: no jobs, no trades"
+        mode = "test mode"
     if share_with is not None and not SETTINGS.token:
         jobs.application = share_with
         jobs.shares_host = True
@@ -232,7 +241,9 @@ async def start_scanner_bot(share_with=None, **options):
     if not is_test_mode():
         jobs.start_jobs(application)
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-    print(f"🚀 Pair scanner bot initialised and polling ({mode})")
+    print(
+        f"🚀 Pair scanner running on its own bot @{application.bot.username} ({mode})"
+    )
     return application
 
 

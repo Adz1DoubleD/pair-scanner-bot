@@ -346,3 +346,47 @@ async def test_clearing_asks_first_then_clears(monkeypatch, what, clear_fn):
     await pair_scanner.handle_button(update, context)
     cleared.assert_awaited_once()
     other.assert_not_awaited()
+
+
+@pytest.fixture
+def start_env(monkeypatch, jq):
+    monkeypatch.setattr(pair_scanner, "init_scanner_db", AsyncMock(return_value={}))
+    monkeypatch.setattr(pair_scanner, "refresh_networks", lambda: None)
+    monkeypatch.setattr(pair_scanner, "close_db", AsyncMock())
+    monkeypatch.setattr(pair_scanner, "close_w3", AsyncMock())
+    monkeypatch.setattr(SETTINGS, "db_url", "mysql://u:p@h/db")
+    monkeypatch.setattr(SETTINGS, "token", None)
+    monkeypatch.delenv("SCANNER_BOT_TOKEN", raising=False)
+    built = []
+    monkeypatch.setattr(
+        pair_scanner.Application, "builder", lambda: built.append(1) or None
+    )
+    host = SimpleNamespace(job_queue=jq, bot_data={"host": True})
+    yield SimpleNamespace(host=host, jq=jq, built=built)
+    pair_scanner.jobs.application = None
+    pair_scanner.jobs.shares_host = False
+
+
+@pytest.mark.asyncio
+async def test_inside_a_host_without_a_token_it_uses_the_hosts_bot(start_env):
+    OPTIONS.update(pairs_enabled=0, strategy_enabled=0)
+    host_jobs_before = start_env.jq.add_existing("Agenda Message")
+
+    app = await pair_scanner.start_scanner_bot(share_with=start_env.host)
+
+    assert app is start_env.host
+    assert start_env.built == []
+    assert pair_scanner.jobs.application is start_env.host
+    assert {c.name for c in start_env.jq.calls} == {"Scanner Health"}
+
+    await pair_scanner.stop_scanner_bot()
+
+    assert start_env.jq.get_jobs_by_name("Scanner Health") == []
+    assert not host_jobs_before.removed
+    assert pair_scanner.jobs.application is None
+
+
+@pytest.mark.asyncio
+async def test_on_its_own_it_still_needs_a_token(start_env):
+    with pytest.raises(ValueError, match="SCANNER_BOT_TOKEN"):
+        await pair_scanner.start_scanner_bot()

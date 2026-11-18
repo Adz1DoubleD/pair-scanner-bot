@@ -14,6 +14,7 @@ from .settings import OPTIONS, SETTINGS
 from .watchers import watch_new_pairs, watch_pair_metadata
 
 application = None
+shares_host = False
 DEFAULT_INTERVAL_MINUTES = 60
 LIVE_FIRST_RUN_SECONDS = 60
 TRADING_FLAGS = ("pairs_enabled", "strategy_enabled")

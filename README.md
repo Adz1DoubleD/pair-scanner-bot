@@ -2,7 +2,9 @@
 
 A self-hosted Telegram bot that watches decentralised exchanges on Base for new token pairs, audits them, and can buy and sell them from **your own wallet**. It runs on its own, or inside another python-telegram-bot application.
 
-> **Use at your own risk.** This is not financial advice. Trading new tokens is extremely risky: most fail, many are scams, and you can lose everything you put in. The software comes with no warranty (see [LICENSE](LICENSE)). Only use a separate wallet holding money you can afford to lose.
+> **Use at your own risk.** This is not financial advice. Trading new tokens is extremely risky: most fail, many are scams, and you can lose everything you put in. The software comes with no warranty (see [LICENSE](LICENSE)). Only use a separate wallet holding money you can afford to lose. You're responsible for your own trades, and for any tax or legal rules where you live.
+>
+> Not affiliated with Uniswap, Aerodrome, GoPlus, honeypot.is, GeckoTerminal, DEX Screener or any RPC provider.
 
 **Status:** early work in progress.
 
@@ -14,7 +16,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Sells** on take-profit, stop-loss, trailing stop, rug (liquidity drop), dead token, or a honeypot appearing later.
 - **Strategy monitor (optional):** buys established pools with strong one-hour momentum.
 - **Alerts** for every buy, sell, would-buy and health problem.
-- **Screens:** the scanner dashboard, pairs, positions, wallet balances, settings and CSV exports.
+- **Screens:** the scanner dashboard, pairs, positions, wallet balances (on Base and Ethereum), health, settings and CSV exports of every pair and position for your own records.
 
 ## Safety
 
@@ -26,17 +28,27 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Its own health check.** Every `health_check_interval` minutes it checks the RPCs, the wallet balance, the database (size, read-only, offline) and the pairs feed, and only messages you when something's wrong. When the database nears `db_cleanup_mb` it clears the archive first. **🩺 Health** on the dashboard shows the same check whenever you want.
 - **Watch-only stops new buys, not sells.** Positions it already holds keep their stop-losses.
 
+## What it connects to
+
+There's no telemetry: nothing is sent to the authors. The bot itself talks to:
+
+- **Telegram**, for your messages and alerts.
+- **Your RPC nodes** (Alchemy or Ankr if you give it keys, otherwise public nodes), to read the chain, check your balance and send your own transactions.
+- **GeckoTerminal**, for pool prices and momentum, and **GoPlus** and **honeypot.is**, for token safety checks. These are sent token and pool addresses, never your wallet or key.
+- **Your MySQL database**, where everything it remembers is kept.
+
 ## Run it on its own
 
 You need Python 3.12+, a MySQL database and a bot token from [@BotFather](https://t.me/BotFather).
 
 ```bash
 pip install pair-scanner-bot
-cp .env.example .env        # fill in the required settings
 python -m pair_scanner
 ```
 
-Send `/start` to your bot.
+Run it from a folder with a `.env` file holding the settings below. [.env.example](.env.example) is a starting point. To find your Telegram user ID for `OWNER_ID`, message [@userinfobot](https://t.me/userinfobot). Then send `/start` to your bot.
+
+To look around before anything runs, set `TEST_MODE=1` first.
 
 ## Settings
 

@@ -149,7 +149,10 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         ]
     )
     keyboard.append(
-        [InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive")]
+        [
+            InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive"),
+            InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings"),
+        ]
     )
     keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 

@@ -21,7 +21,7 @@ from . import jobs
 from .blocks import scanner as scanner_screen
 from .blocks import settings as settings_screen
 from .blocks.balances import balances_block
-from .db import close_db, db_session, init_scanner_db
+from .db import close_db, init_scanner_db
 from .db.pairs import pairs_get_by_status
 from .health import scanner_health
 from .networks import refresh_networks
@@ -198,23 +198,7 @@ async def start_scanner_bot(share_with=None, env_prefix=None, **options):
             lambda record: not any(n in record.getMessage() for n in NOISE)
         )
 
-    copied = await init_scanner_db()
-    if any(copied.values()):
-        print(
-            f"✅ Pair scanner copied from the host: {copied['settings']} settings, "
-            f"{copied['pairs']} pairs, {copied['positions']} positions"
-        )
-    async with db_session() as cur:
-        await cur.execute(
-            "SELECT (SELECT COUNT(*) FROM pairs) AS pairs, "
-            "(SELECT COUNT(*) FROM positions) AS positions"
-        )
-        counts = await cur.fetchone()
-    print(
-        f"✅ Pair scanner database ready: {counts['pairs']} pairs, "
-        f"{counts['positions']} positions, "
-        f"{len(OPTIONS)} settings"
-    )
+    await init_scanner_db()
 
     mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
     if is_test_mode():

@@ -50,6 +50,7 @@ Send `/start` to your bot.
 | `SCANNER_ALCHEMY_API_KEY`, `SCANNER_ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
 | `SCANNER_TIMEZONE` | Default `Europe/London` |
 | `SCANNER_SENTRY_DSN` | Optional error reporting when run on its own |
+| `SCANNER_TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.
 

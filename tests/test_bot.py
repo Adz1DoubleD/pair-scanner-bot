@@ -390,3 +390,14 @@ async def test_inside_a_host_without_a_token_it_uses_the_hosts_bot(start_env):
 async def test_on_its_own_it_still_needs_a_token(start_env):
     with pytest.raises(ValueError, match="SCANNER_BOT_TOKEN"):
         await pair_scanner.start_scanner_bot()
+
+
+@pytest.mark.asyncio
+async def test_in_test_mode_no_jobs_are_started(start_env, monkeypatch):
+    OPTIONS.update(pairs_enabled=1, strategy_enabled=1)
+
+    await pair_scanner.start_scanner_bot(share_with=start_env.host, test_mode=True)
+
+    assert start_env.jq.calls == []
+    assert pair_scanner.jobs.application is start_env.host
+    await pair_scanner.stop_scanner_bot()

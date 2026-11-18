@@ -5,7 +5,7 @@ import pytest
 import pair_scanner.monitors as monitors
 import pair_scanner.w3.audit as audit
 import pair_scanner.w3.trade as trade
-from pair_scanner.settings import OPTIONS
+from pair_scanner.settings import OPTIONS, SETTINGS
 
 PAIR = {
     "target_address": "0x" + "aa" * 20,
@@ -189,3 +189,31 @@ async def test_with_trading_on_watched_tokens_can_be_bought(monkeypatch):
     await monitors.run_strategy_monitor(None)
 
     assert ("watched", "pairs") not in calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["execute_buy", "execute_sell"])
+async def test_test_mode_refuses_every_trade(monkeypatch, name):
+    OPTIONS["trading_enabled"] = 1
+    monkeypatch.setattr(SETTINGS, "test_mode", True)
+    monkeypatch.setattr(SETTINGS, "private_key", "0x" + "11" * 32)
+    opened = AsyncMock()
+    monkeypatch.setattr(trade, "open_w3", opened)
+
+    args = (PAIR["target_address"], 1) if name == "execute_buy" else (dict(PAIR),)
+    tx, error = await getattr(trade, name)({"chain_id": 8453}, *args)
+
+    assert (tx, error) == (None, trade.TEST_MODE)
+    opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_sell_without_a_key_is_refused(monkeypatch):
+    monkeypatch.setattr(SETTINGS, "private_key", None)
+    opened = AsyncMock()
+    monkeypatch.setattr(trade, "open_w3", opened)
+
+    tx, error = await trade.execute_sell({"chain_id": 8453}, dict(PAIR))
+
+    assert (tx, error) == (None, trade.NO_KEY)
+    opened.assert_not_awaited()

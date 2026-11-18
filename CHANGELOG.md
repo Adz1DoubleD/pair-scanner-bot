@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.2.1...v0.3.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* plain setting names on its own, a prefix inside a host ([#17](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/17))
+
+### Features
+
+* plain setting names on its own, a prefix inside a host ([#17](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/17)) ([a11887c](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/a11887c7fee7907aecc6529e043f93fb4449c1cf))
+* read SCANNER_ names by default inside a host ([#18](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/18)) ([1ecbc9f](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/1ecbc9f0782725f6f511b46d2841b9bb55904b7a))
+
+
+### Bug Fixes
+
+* show the real pair and position counts at startup ([#15](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/15)) ([3edf023](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/3edf0234704efc83fe8a7b10599bca09b4a8d421))
+
 ## [0.2.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.2.0...v0.2.1) (2026-11-18)
 
 

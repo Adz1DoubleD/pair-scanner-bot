@@ -1,25 +1,25 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from config import BOT_SETTINGS, TIMEZONE
-from config.scanner import PAIR_STATUS
-from config.w3 import NETWORKS
-from services.db import get_neighbours
-from services.db.pairs import (
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+
+from ..constants import PAIR_STATUS
+from ..db.core import get_neighbours
+from ..db.pairs import (
     pairs_get_by_id,
     pairs_get_by_status,
     pairs_get_rejection_counts,
 )
-from services.w3.audit import (
-    audit_pair,
-)
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
-
-from ...utils import (
+from ..helpers import (
     escape_markdown,
     format_duration,
     format_timestamp,
+)
+from ..networks import NETWORKS
+from ..settings import OPTIONS, SETTINGS
+from ..w3.audit import (
+    audit_pair,
 )
 
 
@@ -31,7 +31,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
         return {
             "text": "❌ Pair not found (it may have been cleared).",
             "reply_markup": InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🔙 Back", callback_data="back:scanner")]]
+                [[InlineKeyboardButton("🔙 Back", callback_data="scanner:home")]]
             ),
         }
 
@@ -40,10 +40,10 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
     pair_addr = pair_data["pair_address"]
     status = pair_data["status"].upper()
 
-    local_tz = ZoneInfo(TIMEZONE)
+    local_tz = ZoneInfo(SETTINGS.timezone)
     now = datetime.now(local_tz)
     found_at = pair_data["found_at"].astimezone(local_tz)
-    audit_time = float(BOT_SETTINGS.get("audit_cooldown", 120))
+    audit_time = float(OPTIONS.get("audit_cooldown", 120))
     unlock_time = found_at + timedelta(minutes=audit_time)
 
     remaining_str = ""
@@ -108,7 +108,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
 
     nav_row.append(
         InlineKeyboardButton("🔄 Refresh", callback_data=f"scanner:status:{row_id}")
@@ -121,7 +121,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
 
     keyboard.append(nav_row)
     keyboard.append(
@@ -132,7 +132,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         ]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     return {
         "text": msg,
@@ -149,7 +149,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     found_pairs = await pairs_get_by_status(status_input, "pairs")
     if not found_pairs:
         kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back ", callback_data="back:scanner")]]
+            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:home")]]
         )
         return {
             "text": f"No pairs found with status: {status_input.capitalize()}",
@@ -198,7 +198,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     for i in range(0, len(id_buttons), 5):
         keyboard.append(id_buttons[i : i + 5])
     keyboard.append(
-        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="back:scanner")]
+        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
     )
 
     return {
@@ -302,9 +302,9 @@ async def button_rejected(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     kb.append(
-        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="back:scanner")]
+        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
     )
-    kb.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    kb.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     await query.edit_message_text(
         text="❌ *Rejected Audit Breakdown*\n\nSelect a category to view pairs:",

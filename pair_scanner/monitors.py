@@ -291,7 +291,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
     return {"sells": sells, "charts": charts, "positions": (held, max_positions)}
 
 
-async def run_sell_all(context):
+async def run_sell_all(context: ContextTypes.DEFAULT_TYPE):
     rows = await pairs_get_by_status(status=None, table="positions") or []
     seen = set()
     sold, skipped, failed = [], [], []
@@ -333,7 +333,7 @@ async def run_sell_all(context):
     return "💼 *Sell All*\n\n" + "\n".join(lines)
 
 
-async def run_strategy_monitor(context):
+async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
     s = OPTIONS
     conf = NETWORKS["Base"]
 

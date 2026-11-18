@@ -1,16 +1,16 @@
-from config.scanner import PAIR_STATUS, STATS_PERIODS
-from services.db.pairs import (
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+
+from .. import jobs
+from ..constants import PAIR_STATUS, STATS_PERIODS
+from ..db.pairs import (
     pairs_get_by_id,
     pairs_get_stats,
     pairs_mark_completed,
 )
-from services.w3.tools import fetch_eth_usd_price
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
-
-from ...auto import jobs
-from ...auto.scanner import run_sell_all, run_strategy_monitor
-from ...utils import escape_markdown, format_timestamp
+from ..helpers import escape_markdown, format_timestamp
+from ..monitors import run_sell_all, run_strategy_monitor
+from ..w3.tools import fetch_eth_usd_price
 from . import pairs, positions
 
 
@@ -36,8 +36,8 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
             "text": "🎯 *Pairs Dashboard*\n\n📡 No pairs found yet.",
             "reply_markup": InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton("🔄 Refresh", callback_data="back:scanner")],
-                    [InlineKeyboardButton("❌ Close", callback_data="cancel")],
+                    [InlineKeyboardButton("🔄 Refresh", callback_data="scanner:home")],
+                    [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
                 ]
             ),
         }
@@ -89,11 +89,9 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
     if brief:
         return {"text": stat_text}
 
-    next_pairs, next_pairs_delta = jobs.get_job_status(
-        "Pairs Monitor", context.job_queue
-    )
-    next_strategy, next_strategy_delta = jobs.get_job_status(
-        "Strategy Monitor", context.job_queue
+    next_pairs, next_pairs_delta = jobs.job_status(jobs.application, "Pairs Monitor")
+    next_strategy, next_strategy_delta = jobs.job_status(
+        jobs.application, "Strategy Monitor"
     )
     activity = [
         f"Monitoring: {mon_count}",
@@ -106,9 +104,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         f"Strategy Monitor: {next_strategy} ({next_strategy_delta})",
     ]
     if mon_count > 0:
-        next_sell, next_sell_delta = jobs.get_job_status(
-            "Sell Monitor", context.job_queue
-        )
+        next_sell, next_sell_delta = jobs.job_status(jobs.application, "Sell Monitor")
         schedule.append(f"Sell Monitor: {next_sell} ({next_sell_delta})")
 
     for title, lines in (("🕒 *Activity*", activity), ("⏭️ *Next Run*", schedule)):
@@ -155,7 +151,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
     keyboard.append(
         [InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive")]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     return {
         "text": stat_text,
@@ -232,7 +228,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton("❌ Cancel", callback_data="back:scanner"),
+                        InlineKeyboardButton("❌ Cancel", callback_data="scanner:home"),
                         InlineKeyboardButton(
                             "✅ Yes, Sell All", callback_data="scanner:sell_all"
                         ),
@@ -374,9 +370,11 @@ async def _block_archive(context: ContextTypes.DEFAULT_TYPE):
 
     keyboard.append(
         [
-            InlineKeyboardButton("📤 Export Pairs", callback_data="export:pairs"),
             InlineKeyboardButton(
-                "📤 Export Positions", callback_data="export:positions"
+                "📤 Export Pairs", callback_data="scanner:export:pairs"
+            ),
+            InlineKeyboardButton(
+                "📤 Export Positions", callback_data="scanner:export:positions"
             ),
         ]
     )
@@ -384,9 +382,9 @@ async def _block_archive(context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔄 Refresh", callback_data="scanner:archive")]
     )
     keyboard.append(
-        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="back:scanner")]
+        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     return {
         "text": text,
@@ -395,7 +393,7 @@ async def _block_archive(context: ContextTypes.DEFAULT_TYPE):
     }
 
 
-async def _button_status(update, context):
+async def _button_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     parts = query.data.split(":")
     identifier = ":".join(parts[2:]) if len(parts) > 2 else None

@@ -1,6 +1,235 @@
+import csv
+import io
+import logging
+import os
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
+
+import sentry_sdk
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
+
+from . import jobs
+from .blocks import scanner as scanner_screen
+from .blocks import settings as settings_screen
+from .blocks.balances import balances_block
+from .db import close_db, init_scanner_db
+from .db.pairs import pairs_get_by_status
+from .health import scanner_health
+from .networks import refresh_networks
+from .settings import ENV_VARS, OPTIONS, SETTINGS, is_owner, setup
+from .w3 import close_w3
 
 try:
     __version__ = version("pair-scanner-bot")
 except PackageNotFoundError:
     __version__ = "0.0.0"
+
+NOISE = (
+    "httpx.ReadError",
+    "RemoteProtocolError",
+    "Timed out",
+    "Query is too old",
+    "query id is invalid",
+    "Message is not modified",
+    "Conflict: terminated by other getUpdates",
+)
+
+__all__ = [
+    "__version__",
+    "balances_block",
+    "handle_button",
+    "handle_text_input",
+    "scanner_block",
+    "scanner_health",
+    "start_scanner_bot",
+    "stop_scanner_bot",
+]
+
+
+async def scanner_block(context: ContextTypes.DEFAULT_TYPE, brief=False):
+    return await scanner_screen.handle_block(context, brief=brief)
+
+
+async def home_block():
+    trading = int(OPTIONS.get("trading_enabled", 0))
+    text = "🎯 *Pair Scanner*\n\n" + (
+        "💸 Trading is on." if trading else "👀 Watch-only: trading is off."
+    )
+    return {
+        "text": text,
+        "parse_mode": "Markdown",
+        "reply_markup": InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("🎯 Scanner", callback_data="scanner:home"),
+                    InlineKeyboardButton(
+                        "₿ Balances", callback_data="scanner:balances"
+                    ),
+                ],
+                [InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings")],
+                [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
+            ]
+        ),
+    }
+
+
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+
+    if not is_owner(query.from_user.id):
+        await query.answer("This bot only answers its owner.", show_alert=True)
+        return
+
+    if data.startswith("scanner:settings"):
+        await settings_screen.handle_button(update, context)
+        return
+
+    await query.answer()
+
+    if data == "scanner:ignore":
+        return
+
+    if data == "scanner:close":
+        try:
+            await query.message.delete()
+        except BadRequest:
+            await query.edit_message_reply_markup(None)
+        return
+
+    if data.startswith("scanner:export:"):
+        table = data.split(":")[2]
+        if table not in ("pairs", "positions"):
+            return
+        rows = await pairs_get_by_status(None, table) or []
+        buf = io.StringIO()
+        if rows:
+            writer = csv.DictWriter(buf, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        stamp = datetime.now().strftime("%Y-%m-%d")
+        await context.bot.send_document(
+            chat_id=query.message.chat_id,
+            document=io.BytesIO(buf.getvalue().encode("utf-8-sig")),
+            filename=f"{table}_{stamp}.csv",
+            caption=f"📤 {table.capitalize()}: {len(rows)} rows",
+        )
+        return
+
+    if data in ("scanner:menu", "scanner:home", "scanner:balances"):
+        if data == "scanner:menu":
+            block = await home_block()
+        elif data == "scanner:home":
+            block = await scanner_screen.handle_block(context)
+        else:
+            block = await balances_block()
+        await query.edit_message_text(
+            block["text"],
+            reply_markup=block.get("reply_markup"),
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+        return
+
+    await scanner_screen.handle_button(update, context)
+
+
+async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id):
+        return
+    state = context.user_data.get("state") or ""
+    if not state.startswith("scanner:settings:"):
+        return
+    text = (update.message.text or "").strip()
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    await settings_screen.handle_text(update, context, text)
+
+
+async def command_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("This bot only answers its owner.")
+        return
+    context.user_data.pop("state", None)
+    block = await home_block()
+    await update.message.reply_text(
+        block["text"], reply_markup=block["reply_markup"], parse_mode="Markdown"
+    )
+
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if any(n.lower() in str(context.error).lower() for n in NOISE):
+        return
+    sentry_sdk.capture_exception(context.error)
+
+
+async def start_scanner_bot(share_with=None, **options):
+    setup(**options)
+    missing = [
+        ENV_VARS[name]
+        for name in ("token", "owner_id", "db_url", "wallet_address")
+        if not getattr(SETTINGS, name)
+    ]
+    if missing:
+        raise ValueError(f"Pair scanner needs these settings: {', '.join(missing)}")
+    if not SETTINGS.alerts_chat_id:
+        SETTINGS.alerts_chat_id = SETTINGS.owner_id
+    refresh_networks()
+
+    os.environ.setdefault("PTB_TIMEDELTA", "1")
+    for name in ("telegram", "httpx"):
+        logging.getLogger(name).addFilter(
+            lambda record: not any(n in record.getMessage() for n in NOISE)
+        )
+
+    imported = await init_scanner_db()
+    if imported:
+        print(f"✅ Pair scanner copied {imported} settings from the host")
+
+    application = Application.builder().token(SETTINGS.token).build()
+    application.add_handler(CommandHandler("start", command_start))
+    application.add_handler(CallbackQueryHandler(handle_button, pattern=r"^scanner:"))
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND & ~filters.UpdateType.CHANNEL_POSTS,
+            handle_text_input,
+        )
+    )
+    application.add_error_handler(error_handler)
+    if share_with is not None:
+        application.bot_data["host"] = share_with
+
+    await application.initialize()
+    await application.start()
+    jobs.application = application
+    jobs.start_jobs(application)
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
+    print(f"🚀 Pair scanner bot initialised and polling ({mode})")
+    return application
+
+
+async def stop_scanner_bot():
+    application = jobs.application
+    if application is not None:
+        await jobs.stop_jobs(application)
+        if application.updater and application.updater.running:
+            await application.updater.stop()
+        if application.running:
+            await application.stop()
+        if application._initialized:
+            await application.shutdown()
+        jobs.application = None
+    await close_w3()
+    await close_db()

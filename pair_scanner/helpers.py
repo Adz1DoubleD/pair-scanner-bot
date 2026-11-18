@@ -25,7 +25,7 @@ def to_float(v):
 
 def close_kb():
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("❌ Close", callback_data="cancel")]]
+        [[InlineKeyboardButton("❌ Close", callback_data="scanner:close")]]
     )
 
 

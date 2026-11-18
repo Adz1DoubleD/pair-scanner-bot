@@ -1,7 +1,14 @@
 import os
 from types import SimpleNamespace
 
-SECRETS = ("token", "private_key", "alchemy_api_key", "ankr_api_key", "db_url")
+SECRETS = (
+    "token",
+    "private_key",
+    "alchemy_api_key",
+    "ankr_api_key",
+    "db_url",
+    "import_from_db_url",
+)
 
 ENV_VARS = {
     "token": "SCANNER_BOT_TOKEN",
@@ -35,6 +42,7 @@ SETTINGS = Settings(
     timezone="Europe/London",
     test_mode=False,
     import_settings_from=None,
+    import_from_db_url=None,
 )
 
 OPTION_DEFAULTS = {

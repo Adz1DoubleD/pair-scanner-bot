@@ -1,4 +1,7 @@
 import re
+from urllib.parse import urlparse
+
+import aiomysql
 
 from ..settings import OPTION_DEFAULTS, OPTIONS, SETTINGS, option_value
 from .core import db_session
@@ -77,32 +80,86 @@ async def init_scanner_db():
         await cur.execute("SELECT name, value FROM scanner_settings")
         rows = list(await cur.fetchall() or [])
 
-        imported = 0
+        copied = {"settings": 0, "pairs": 0, "positions": 0}
         source = SETTINGS.import_settings_from
+        host_url = SETTINGS.import_from_db_url
         if not rows and source and re.fullmatch(r"\w+", source):
-            await cur.execute("SHOW TABLES LIKE %s", (source,))
-            if await cur.fetchone():
-                await cur.execute(f"SELECT * FROM `{source}` LIMIT 1")
-                host = await cur.fetchone() or {}
+            settings_row = None
+            history = {}
+            if host_url and host_url != SETTINGS.db_url:
+                url = urlparse(host_url)
+                conn = await aiomysql.connect(
+                    host=url.hostname,
+                    user=url.username,
+                    password=url.password,
+                    port=url.port or 3306,
+                    db=url.path[1:],
+                    autocommit=True,
+                )
+                try:
+                    async with conn.cursor(aiomysql.DictCursor) as host:
+                        await host.execute("SHOW TABLES LIKE %s", (source,))
+                        if await host.fetchone():
+                            await host.execute(f"SELECT * FROM `{source}` LIMIT 1")
+                            settings_row = await host.fetchone()
+                        for table in ("pairs", "positions"):
+                            await host.execute("SHOW TABLES LIKE %s", (table,))
+                            if await host.fetchone():
+                                await host.execute(
+                                    f"SELECT * FROM `{table}` ORDER BY id"
+                                )
+                                history[table] = list(await host.fetchall() or [])
+                finally:
+                    conn.close()
+            else:
+                await cur.execute("SHOW TABLES LIKE %s", (source,))
+                if await cur.fetchone():
+                    await cur.execute(f"SELECT * FROM `{source}` LIMIT 1")
+                    settings_row = await cur.fetchone()
+
+            if settings_row is not None:
                 values = {
                     **IMPORTED_EXTRAS,
                     **{
                         k: v
-                        for k, v in host.items()
+                        for k, v in settings_row.items()
                         if k in OPTION_DEFAULTS and v is not None
                     },
                 }
-                for name, value in values.items():
-                    await cur.execute(
-                        "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
-                        (name, str(option_value(name, value))),
-                    )
+                await cur.execute("START TRANSACTION")
+                try:
+                    for table, table_rows in history.items():
+                        await cur.execute(f"SELECT COUNT(*) AS n FROM `{table}`")
+                        if not table_rows or (await cur.fetchone())["n"]:
+                            continue
+                        await cur.execute(f"SHOW COLUMNS FROM `{table}`")
+                        columns = [c["Field"] for c in await cur.fetchall()]
+                        keep = [c for c in columns if c in table_rows[0]]
+                        await cur.executemany(
+                            f"INSERT INTO `{table}` ("
+                            + ", ".join(f"`{c}`" for c in keep)
+                            + ") VALUES ("
+                            + ", ".join(["%s"] * len(keep))
+                            + ")",
+                            [[r.get(c) for c in keep] for r in table_rows],
+                        )
+                        copied[table] = len(table_rows)
+                    for name, value in values.items():
+                        await cur.execute(
+                            "INSERT INTO scanner_settings (name, value) "
+                            "VALUES (%s, %s)",
+                            (name, str(option_value(name, value))),
+                        )
+                    await cur.execute("COMMIT")
+                except Exception:
+                    await cur.execute("ROLLBACK")
+                    raise
                 rows = [{"name": k, "value": v} for k, v in values.items()]
-                imported = len(values)
+                copied["settings"] = len(values)
 
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)
     for row in rows:
         if row["name"] in OPTION_DEFAULTS:
             OPTIONS[row["name"]] = option_value(row["name"], row["value"])
-    return imported
+    return copied

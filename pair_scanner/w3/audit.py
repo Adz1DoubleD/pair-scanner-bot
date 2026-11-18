@@ -3,25 +3,24 @@ from decimal import Decimal, getcontext
 
 import httpx
 import sentry_sdk
-from bot.utils import escape_markdown, to_float
-from config import BOT_SETTINGS
-from config.scanner import PAIR_LABELS
-from config.w3 import (
+from telegram.ext import ContextTypes
+from web3 import Web3
+
+from ..constants import PAIR_LABELS
+from ..db.pairs import (
+    pairs_mark_audit_complete,
+    pairs_mark_for_retry,
+    pairs_position_add,
+)
+from ..helpers import GECKO_POOLS, escape_markdown, fetch, to_float
+from ..networks import (
     ERC20_ABI,
     NETWORKS,
     POOL_CREATED_TOPIC,
     V3_POOL_ABI,
     WETH_ABI,
 )
-from telegram.ext import ContextTypes
-from web3 import Web3
-
-from .. import fetch, urls
-from ..db.pairs import (
-    pairs_mark_audit_complete,
-    pairs_mark_for_retry,
-    pairs_position_add,
-)
+from ..settings import OPTIONS
 from . import open_w3, pool_kind
 from .tools import dex_name
 from .trade import execute_buy, simulate_sell
@@ -42,6 +41,7 @@ async def audit_pair(
     results = []
     charts = []
     buys = []
+    watched = []
     failed = []
 
     for entry in targets:
@@ -54,10 +54,10 @@ async def audit_pair(
             network_key = entry.get("network", "Base")
             conf = NETWORKS.get(network_key)
 
-            min_liq_eth = Decimal(str(BOT_SETTINGS.get("min_liquidity_eth", 0.5)))
+            min_liq_eth = Decimal(str(OPTIONS.get("min_liquidity_eth", 0.5)))
             min_liq = int(min_liq_eth * 10**18)
-            min_ratio = float(BOT_SETTINGS.get("min_ratio_percent", 15.0))
-            min_lp_locked = float(BOT_SETTINGS.get("min_lp_locked_pct", 70))
+            min_ratio = float(OPTIONS.get("min_ratio_percent", 15.0))
+            min_lp_locked = float(OPTIONS.get("min_lp_locked_pct", 70))
 
             w3 = await open_w3(conf)
             pair = Web3.to_checksum_address(entry["pair_address"])
@@ -132,7 +132,18 @@ async def audit_pair(
                 continue
 
             passed += 1
-            buy_amount = BOT_SETTINGS.get("buy_amount_eth", 0.0001)
+            if not int(OPTIONS.get("trading_enabled", 0)):
+                if force_buy:
+                    results.append(
+                        f"👀 {symbol} — trading is off. Turn it on in "
+                        "⚙️ Settings to buy."
+                    )
+                    continue
+                await pairs_mark_audit_complete(token_addr, "watched")
+                watched.append(f"${symbol} · {balance / 10**18:.2f} ETH liquidity")
+                results.append(f"👀 {watched[-1]} · would buy")
+                continue
+            buy_amount = OPTIONS.get("buy_amount_eth", 0.0001)
             tx_hash, buy_error = await execute_buy(
                 conf, token_addr, buy_amount, entry["pair_address"]
             )
@@ -173,6 +184,7 @@ async def audit_pair(
         "text": "\n".join(scan + [""] + results),
         "charts": charts,
         "buys": buys,
+        "watched": watched,
         "failed": failed,
     }
 
@@ -203,7 +215,7 @@ async def check_honeypot(token_addr, chain_id=8453):
 async def fetch_candidates(pages=3):
     conf = NETWORKS["Base"]
     weth = conf["weth"].lower()
-    base_url = urls["coingecko"]
+    base_url = GECKO_POOLS
 
     by_token = {}
     error = None

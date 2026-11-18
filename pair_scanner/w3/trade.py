@@ -2,8 +2,12 @@ import asyncio
 import time
 
 import sentry_sdk
-from config import BOT_SETTINGS, PRIVATE_KEY, WALLET_ADDRESS
-from config.w3 import (
+from eth_abi import encode
+from eth_utils import keccak, to_hex
+from web3 import Web3
+from web3.exceptions import TimeExhausted
+
+from ..networks import (
     AERO_ROUTER_ABI,
     ERC20_ABI,
     MAX_UINT256,
@@ -12,14 +16,11 @@ from config.w3 import (
     V3_ROUTER_ABI,
     V3_ROUTER_SELF,
 )
-from eth_abi import encode
-from eth_utils import keccak, to_hex
-from web3 import Web3
-from web3.exceptions import TimeExhausted
-
+from ..settings import OPTIONS, SETTINGS
 from . import open_w3, pool_kind
 
 DUST_GAS_UNITS = 300_000
+WATCH_ONLY = "Trading is off (watch-only)"
 RECEIPT_TIMEOUT = 60
 
 
@@ -46,8 +47,10 @@ nonce_manager = NonceManager()
 
 
 async def execute_buy(conf: dict, token_addr, amount_eth, pair_addr=None):
-    private_key = PRIVATE_KEY
-    buffer = float(BOT_SETTINGS.get("slippage", 5.0))
+    if not int(OPTIONS.get("trading_enabled", 0)):
+        return None, WATCH_ONLY
+    private_key = SETTINGS.private_key
+    buffer = float(OPTIONS.get("slippage", 5.0))
     w3 = await open_w3(conf)
 
     account = w3.eth.account.from_key(private_key)
@@ -136,10 +139,10 @@ async def execute_buy(conf: dict, token_addr, amount_eth, pair_addr=None):
 
 
 async def execute_sell(conf: dict, pos, skip_dust=False):
-    private_key = PRIVATE_KEY
+    private_key = SETTINGS.private_key
 
     total_slippage = float(pos.get("sell_tax") or 0) + float(
-        BOT_SETTINGS.get("slippage", 2.0)
+        OPTIONS.get("slippage", 2.0)
     )
 
     w3 = await open_w3(conf)
@@ -322,7 +325,7 @@ async def simulate_sell(conf, token_addr, pair_addr=None):
         w3 = await open_w3(conf)
         weth_addr = Web3.to_checksum_address(conf["weth"])
         token_addr = Web3.to_checksum_address(token_addr)
-        wallet = Web3.to_checksum_address(WALLET_ADDRESS)
+        wallet = Web3.to_checksum_address(SETTINGS.wallet_address)
 
         stable, fee = await pool_kind(w3, conf, pair_addr)
         if stable is not None:

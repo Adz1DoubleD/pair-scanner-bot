@@ -2,11 +2,11 @@ import asyncio
 import time
 
 import sentry_sdk
-from config import BOT_SETTINGS
-from config.w3 import CHAINLINK_ABI, CHAINLINK_ETH_USD, NETWORKS, WETH_WITHDRAWAL_TOPIC
 from web3 import Web3
 
-from ..db.settings import settings_update
+from ..db.options import option_set
+from ..networks import CHAINLINK_ABI, CHAINLINK_ETH_USD, NETWORKS, WETH_WITHDRAWAL_TOPIC
+from ..settings import OPTIONS
 from . import open_w3, pool_kind
 
 
@@ -50,8 +50,8 @@ async def fetch_eth_usd_price() -> float:
 
 async def eth_balance_delta(current_eth: float):
     try:
-        snap = float(BOT_SETTINGS.get("eth_bal_snapshot") or 0)
-        snap_ts = float(BOT_SETTINGS.get("eth_bal_snapshot_ts") or 0)
+        snap = float(OPTIONS.get("eth_bal_snapshot") or 0)
+        snap_ts = float(OPTIONS.get("eth_bal_snapshot_ts") or 0)
     except (ValueError, TypeError):
         snap, snap_ts = 0.0, 0.0
 
@@ -59,15 +59,15 @@ async def eth_balance_delta(current_eth: float):
     day = 24 * 60 * 60
 
     if snap <= 0 or snap_ts <= 0:
-        await settings_update("eth_bal_snapshot", round(current_eth, 8))
-        await settings_update("eth_bal_snapshot_ts", now)
+        await option_set("eth_bal_snapshot", round(current_eth, 8))
+        await option_set("eth_bal_snapshot_ts", now)
         return None
 
     pct = (current_eth - snap) / snap * 100
 
     if now - snap_ts >= day:
-        await settings_update("eth_bal_snapshot", round(current_eth, 8))
-        await settings_update("eth_bal_snapshot_ts", now)
+        await option_set("eth_bal_snapshot", round(current_eth, 8))
+        await option_set("eth_bal_snapshot_ts", now)
 
     return pct
 

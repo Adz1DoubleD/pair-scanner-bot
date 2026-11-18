@@ -2,54 +2,41 @@ import asyncio
 from datetime import datetime, timezone
 
 import sentry_sdk
-from config import BOT_SETTINGS
-from config.scanner import PAIR_LABELS
-from config.w3 import (
-    AERO_POOL_CREATED_TOPIC,
-    ERC20_ABI,
-    NETWORKS,
-    PAIR_CREATED_TOPIC,
-    POOL_CREATED_TOPIC,
-)
-from services.db.pairs import (
-    pairs_add,
+from telegram.ext import ContextTypes
+
+from .constants import PAIR_LABELS
+from .db.pairs import (
     pairs_get_by_status,
     pairs_get_for_audit,
     pairs_get_status_count,
-    pairs_mark_as_invalid,
     pairs_mark_completed,
     pairs_position_add,
     pairs_position_update,
     pairs_strat_add,
-    pairs_update_metadata,
 )
-from services.w3 import (
-    open_w3,
+from .helpers import escape_markdown
+from .networks import (
+    NETWORKS,
 )
-from services.w3.audit import (
+from .settings import OPTIONS
+from .w3.audit import (
     audit_pair,
     check_honeypot,
     fetch_candidates,
     get_security_audit,
     get_token_metrics,
-    parse_pair_created,
 )
-from services.w3.tools import (
+from .w3.tools import (
     dex_name,
     trade_result,
 )
-from services.w3.trade import execute_buy, execute_sell, simulate_sell
-from telegram.ext import ContextTypes
-from web3 import Web3
-from web3.exceptions import BadFunctionCallOutput, ContractLogicError
-
-from ..utils import escape_markdown
+from .w3.trade import execute_buy, execute_sell, simulate_sell
 
 _NO_ENTRY_WARNED = set()
 
 
 async def run_pairs_monitor(context: ContextTypes.DEFAULT_TYPE):
-    max_positions = int(BOT_SETTINGS.get("max_positions", 5))
+    max_positions = int(OPTIONS.get("max_positions", 5))
     active_count = await pairs_get_status_count("monitoring", "positions")
     slots = max_positions - active_count
     if slots <= 0:
@@ -70,7 +57,7 @@ async def run_pairs_monitor(context: ContextTypes.DEFAULT_TYPE):
 
 async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
     active_positions = await pairs_get_by_status(status="monitoring", table="positions")
-    s = BOT_SETTINGS
+    s = OPTIONS
     sells = []
     charts = []
     held = len([p for p in active_positions or [] if isinstance(p, dict)])
@@ -347,7 +334,7 @@ async def run_sell_all(context):
 
 
 async def run_strategy_monitor(context):
-    s = BOT_SETTINGS
+    s = OPTIONS
     conf = NETWORKS["Base"]
 
     min_liq_usd = float(s.get("strat_min_liq_usd", 250_000))
@@ -402,6 +389,7 @@ async def run_strategy_monitor(context):
     results = []
     charts = []
     buys = []
+    watched = []
     failed = []
     for c in picks:
         if bought >= slots:
@@ -437,6 +425,15 @@ async def run_strategy_monitor(context):
                 continue
 
             passed += 1
+            if not int(OPTIONS.get("trading_enabled", 0)):
+                await pairs_strat_add(
+                    token_addr, c["pair_addr"], c["symbol"], "watched"
+                )
+                watched.append(
+                    f"${symbol} · {c['change_h1']:+.1f}% 1h · ${c['liq_usd']:,.0f}"
+                )
+                results.append(f"👀 {watched[-1]} · would buy")
+                continue
             tx_hash, buy_error = await execute_buy(
                 conf, token_addr, buy_amount, c["pair_addr"]
             )
@@ -481,114 +478,7 @@ async def run_strategy_monitor(context):
         "text": "\n".join(scan + [""] + results),
         "charts": charts,
         "buys": buys,
+        "watched": watched,
         "failed": failed,
         "positions": (len(held) + bought, max_positions),
     }
-
-
-async def watch_new_pairs():
-    last_block = None
-    network_name = "Base"
-    conf = NETWORKS[network_name]
-    BUFFER = 2
-    MAX_BLOCK_RANGE = 1000
-    factories = [
-        f
-        for f in (
-            conf["v2_factory"],
-            conf["v3_factory"],
-            conf.get("aero_factory"),
-        )
-        if f
-    ]
-    topics = [PAIR_CREATED_TOPIC, POOL_CREATED_TOPIC, AERO_POOL_CREATED_TOPIC]
-
-    while True:
-        try:
-            w3 = await open_w3(conf)
-            blockchain_tip = await w3.eth.block_number
-            current_block = blockchain_tip - BUFFER
-
-            if last_block is None:
-                last_block = current_block - 1
-
-            if current_block > last_block:
-                from_block = last_block + 1
-
-                while from_block <= current_block:
-                    to_block = min(from_block + MAX_BLOCK_RANGE - 1, current_block)
-                    logs = await w3.eth.get_logs(
-                        {
-                            "fromBlock": from_block,
-                            "toBlock": to_block,
-                            "address": factories,
-                            "topics": [topics],
-                        }
-                    )
-
-                    if logs:
-                        for log in logs:
-                            t0, t1, pair = parse_pair_created(log)
-
-                            weth = conf["weth"].lower()
-                            if t0.lower() == weth or t1.lower() == weth:
-                                target = t1 if t0.lower() == weth else t0
-                                await pairs_add(target, pair, network_name)
-
-                    from_block = to_block + 1
-
-                last_block = current_block
-
-        except Exception as e:
-            is_timeout = (
-                isinstance(e, (asyncio.TimeoutError, TimeoutError))
-                or "timeout" in str(e).lower()
-            )
-            is_rpc_sync = "-32602" in str(e) or "block range" in str(e).lower()
-            is_server_error = (
-                "status=500" in str(e) or "internal server error" in str(e).lower()
-            )
-            is_bad_request = "Bad Request" in str(e)
-
-            if not (is_timeout or is_rpc_sync or is_server_error or is_bad_request):
-                sentry_sdk.capture_exception(e)
-
-            await asyncio.sleep(10)
-            continue
-
-        await asyncio.sleep(2)
-
-
-async def watch_pair_metadata():
-    failures = {}
-    while True:
-        pending = await pairs_get_by_status(status="pending", table="pairs", limit=5)
-
-        if not pending:
-            await asyncio.sleep(30)
-            continue
-
-        for row in pending:
-            target_addr = row["target_address"]
-            conf = NETWORKS.get(row["network"])
-            w3 = await open_w3(conf)
-            try:
-                contract = w3.eth.contract(
-                    address=Web3.to_checksum_address(target_addr), abi=ERC20_ABI
-                )
-                symbol = await contract.functions.symbol().call()
-                decimals = await contract.functions.decimals().call()
-            except (BadFunctionCallOutput, ContractLogicError, ValueError):
-                await pairs_mark_as_invalid(target_addr)
-                continue
-            except Exception:
-                failures[target_addr] = failures.get(target_addr, 0) + 1
-                if failures[target_addr] >= 5:
-                    failures.pop(target_addr)
-                    await pairs_mark_as_invalid(target_addr)
-                continue
-
-            failures.pop(target_addr, None)
-            await pairs_update_metadata(target_addr, symbol, decimals)
-
-        await asyncio.sleep(5)

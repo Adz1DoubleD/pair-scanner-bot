@@ -1,7 +1,6 @@
-from config import BOT_SETTINGS
-from config.scanner import PAIR_RETRY_ALWAYS, PAIR_RETRY_LIMITED, PAIR_STATUS
-
-from . import db_session
+from ..constants import PAIR_RETRY_ALWAYS, PAIR_RETRY_LIMITED, PAIR_STATUS
+from ..settings import OPTIONS
+from .core import db_session
 
 
 async def pairs_add(target_address, pair_address, network, decimals=18):
@@ -43,9 +42,9 @@ async def pairs_mark_as_invalid(address):
 
 
 async def pairs_get_for_audit():
-    cooldown = float(BOT_SETTINGS.get("audit_cooldown", 120))
-    audit_limit = int(BOT_SETTINGS.get("auto_audit_max", 20))
-    max_retries = int(BOT_SETTINGS.get("max_audits", 3))
+    cooldown = float(OPTIONS.get("audit_cooldown", 120))
+    audit_limit = int(OPTIONS.get("auto_audit_max", 20))
+    max_retries = int(OPTIONS.get("max_audits", 3))
 
     async with db_session() as cur:
         statuses = ["awaiting"] + PAIR_RETRY_LIMITED

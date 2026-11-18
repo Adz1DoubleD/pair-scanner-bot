@@ -2,9 +2,10 @@ import asyncio
 import time
 
 from aiohttp import ClientSession, TCPConnector
-from config.w3 import AERO_POOL_ABI, NETWORKS, V3_POOL_ABI
 from web3 import AsyncHTTPProvider, AsyncWeb3, Web3
 from web3.exceptions import BadFunctionCallOutput, ContractLogicError
+
+from ..networks import AERO_POOL_ABI, NETWORKS, V3_POOL_ABI
 
 w3_cache: dict[str, AsyncWeb3] = {}
 rpc_failed: dict[str, float] = {}

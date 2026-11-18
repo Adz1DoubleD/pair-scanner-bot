@@ -1,4 +1,4 @@
-from config import ALCHEMY_API_KEY, ANKR_API_KEY
+from .settings import SETTINGS
 
 
 def _rpcs(*entries):
@@ -6,61 +6,69 @@ def _rpcs(*entries):
     return {"rpc": usable[0], "rpc_fallbacks": usable[1:]}
 
 
-NETWORKS = {
-    "Ethereum": {
-        **_rpcs(
-            ALCHEMY_API_KEY
-            and {
-                "url": f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}",
-                "name": "Alchemy",
-            },
-            ANKR_API_KEY
-            and {"url": f"https://rpc.ankr.com/eth/{ANKR_API_KEY}", "name": "Ankr"},
-            {"url": "https://ethereum-rpc.publicnode.com", "name": "PublicNode"},
-            {"url": "https://eth.drpc.org", "name": "dRPC"},
-        ),
-        "chain_id": 1,
-        "scan": "https://etherscan.io/tx/",
-        "dex": "https://dexscreener.com/ethereum/",
-        "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-        "v2_factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        "v3_factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-        "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-        "gas_multiplier": 1.2,
-        "min_sweep_wei": 5000000000000000,
-        "gas_limit_eth": 21000,
-        "gas_limit_token": 300000,
-    },
-    "Base": {
-        **_rpcs(
-            ALCHEMY_API_KEY
-            and {
-                "url": f"https://base-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}",
-                "name": "Alchemy",
-            },
-            ANKR_API_KEY
-            and {"url": f"https://rpc.ankr.com/base/{ANKR_API_KEY}", "name": "Ankr"},
-            {"url": "https://base.publicnode.com", "name": "PublicNode"},
-            {"url": "https://base.drpc.org", "name": "dRPC"},
-        ),
-        "chain_id": 8453,
-        "scan": "https://basescan.org/tx/",
-        "dex": "https://dexscreener.com/base/",
-        "gecko_dexes": ("uniswap-v2-base", "uniswap-v3-base", "aerodrome-base"),
-        "router": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
-        "v2_factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-        "v3_factory": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
-        "v3_router": "0x2626664c2603336E57B271c5C0b26F421741e481",
-        "v3_quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
-        "aero_router": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-        "aero_factory": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
-        "weth": "0x4200000000000000000000000000000000000006",
-        "gas_multiplier": 1.1,
-        "min_sweep_wei": 100000000000000,
-        "gas_limit_eth": 21000,
-        "gas_limit_token": 300000,
-    },
-}
+def build_networks():
+    alchemy, ankr = SETTINGS.alchemy_api_key, SETTINGS.ankr_api_key
+    return {
+        "Ethereum": {
+            **_rpcs(
+                alchemy
+                and {
+                    "url": f"https://eth-mainnet.g.alchemy.com/v2/{alchemy}",
+                    "name": "Alchemy",
+                },
+                ankr and {"url": f"https://rpc.ankr.com/eth/{ankr}", "name": "Ankr"},
+                {"url": "https://ethereum-rpc.publicnode.com", "name": "PublicNode"},
+                {"url": "https://eth.drpc.org", "name": "dRPC"},
+            ),
+            "chain_id": 1,
+            "scan": "https://etherscan.io/tx/",
+            "dex": "https://dexscreener.com/ethereum/",
+            "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+            "v2_factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+            "v3_factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+            "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            "gas_multiplier": 1.2,
+            "min_sweep_wei": 5000000000000000,
+            "gas_limit_eth": 21000,
+            "gas_limit_token": 300000,
+        },
+        "Base": {
+            **_rpcs(
+                alchemy
+                and {
+                    "url": f"https://base-mainnet.g.alchemy.com/v2/{alchemy}",
+                    "name": "Alchemy",
+                },
+                ankr and {"url": f"https://rpc.ankr.com/base/{ankr}", "name": "Ankr"},
+                {"url": "https://base.publicnode.com", "name": "PublicNode"},
+                {"url": "https://base.drpc.org", "name": "dRPC"},
+            ),
+            "chain_id": 8453,
+            "scan": "https://basescan.org/tx/",
+            "dex": "https://dexscreener.com/base/",
+            "gecko_dexes": ("uniswap-v2-base", "uniswap-v3-base", "aerodrome-base"),
+            "router": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+            "v2_factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+            "v3_factory": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+            "v3_router": "0x2626664c2603336E57B271c5C0b26F421741e481",
+            "v3_quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+            "aero_router": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
+            "aero_factory": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
+            "weth": "0x4200000000000000000000000000000000000006",
+            "gas_multiplier": 1.1,
+            "min_sweep_wei": 100000000000000,
+            "gas_limit_eth": 21000,
+            "gas_limit_token": 300000,
+        },
+    }
+
+
+NETWORKS = build_networks()
+
+
+def refresh_networks():
+    NETWORKS.clear()
+    NETWORKS.update(build_networks())
 
 
 ERC20_ABI = [

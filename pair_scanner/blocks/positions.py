@@ -1,34 +1,34 @@
-from config import WALLET_ADDRESS
-from config.w3 import ERC20_ABI, NETWORKS
-from services.db import get_neighbours
-from services.db.pairs import (
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+from web3 import Web3
+
+from ..db.core import get_neighbours
+from ..db.pairs import (
     pairs_get_by_id,
     pairs_get_by_status,
     pairs_mark_completed,
     pairs_position_update,
 )
-from services.w3 import open_w3
-from services.w3.audit import get_security_audit, get_token_metrics
-from services.w3.tools import (
-    fetch_eth_usd_price,
-    trade_result,
-)
-from services.w3.trade import execute_sell
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
-from web3 import Web3
-
-from ...utils import (
+from ..helpers import (
     escape_markdown,
     format_balance,
 )
+from ..networks import ERC20_ABI, NETWORKS
+from ..settings import SETTINGS
+from ..w3 import open_w3
+from ..w3.audit import get_security_audit, get_token_metrics
+from ..w3.tools import (
+    fetch_eth_usd_price,
+    trade_result,
+)
+from ..w3.trade import execute_sell
 
 
-async def block_detail(context, row_id, table):
+async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
     data = await pairs_get_by_id(row_id, "positions")
     if not data:
         kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back ", callback_data="back:scanner")]]
+            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:home")]]
         )
         return {
             "text": "❌ Position not found.",
@@ -66,7 +66,7 @@ async def block_detail(context, row_id, table):
                 abi=ERC20_ABI,
             )
             raw_balance = await token_contract.functions.balanceOf(
-                WALLET_ADDRESS
+                SETTINGS.wallet_address
             ).call()
             token_balance = raw_balance / 10**decimals
             eth_usd = await fetch_eth_usd_price()
@@ -189,7 +189,7 @@ async def block_detail(context, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
 
     if current_status == "monitoring":
         nav_row.append(
@@ -198,7 +198,7 @@ async def block_detail(context, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
 
     if next_id:
         nav_row.append(
@@ -207,10 +207,10 @@ async def block_detail(context, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
 
     keyboard.append(nav_row)
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     return {"text": msg, "reply_markup": InlineKeyboardMarkup(keyboard)}
 
@@ -226,8 +226,8 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
             "text": f"No positions found with status: {status_input.upper()}",
             "reply_markup": InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton("🔙 Back", callback_data="back:scanner")],
-                    [InlineKeyboardButton("❌ Close", callback_data="cancel")],
+                    [InlineKeyboardButton("🔙 Back", callback_data="scanner:home")],
+                    [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
                 ]
             ),
         }
@@ -279,8 +279,8 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
         keyboard.append(id_buttons[i : i + 5])
     keyboard.extend(
         [
-            [InlineKeyboardButton("🔙 Back to Scanner", callback_data="back:scanner")],
-            [InlineKeyboardButton("❌ Close", callback_data="cancel")],
+            [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")],
+            [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
         ]
     )
 
@@ -291,7 +291,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     }
 
 
-async def button_refresh(update, context, row_id):
+async def button_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE, row_id):
     query = update.callback_query
     pos = await pairs_get_by_id(row_id, "positions")
     if not pos or pos.get("status") != "monitoring":

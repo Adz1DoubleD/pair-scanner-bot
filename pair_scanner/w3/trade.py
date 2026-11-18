@@ -47,7 +47,7 @@ nonce_manager = NonceManager()
 
 
 async def execute_buy(conf: dict, token_addr, amount_eth, pair_addr=None):
-    if not int(OPTIONS.get("trading_enabled", 0)):
+    if not int(OPTIONS.get("trading_enabled", 0)) or not SETTINGS.private_key:
         return None, WATCH_ONLY
     private_key = SETTINGS.private_key
     buffer = float(OPTIONS.get("slippage", 5.0))

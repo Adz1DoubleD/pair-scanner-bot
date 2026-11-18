@@ -1,15 +1,18 @@
 import asyncio
 
-from config import WALLET_ADDRESS
-from config.w3 import NETWORKS
-from services.w3.tools import eth_balance_delta, fetch_eth_usd_price, fetch_network_bal
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from ..networks import NETWORKS
+from ..settings import SETTINGS
+from ..w3.tools import eth_balance_delta, fetch_eth_usd_price, fetch_network_bal
 
-async def handle_block(brief=False):
+
+async def balances_block(brief=False):
     eth_usd = await fetch_eth_usd_price()
 
-    tasks = [fetch_network_bal(n, c, WALLET_ADDRESS) for n, c in NETWORKS.items()]
+    tasks = [
+        fetch_network_bal(n, c, SETTINGS.wallet_address) for n, c in NETWORKS.items()
+    ]
     results = await asyncio.gather(*tasks)
 
     total_eth = 0.0
@@ -24,7 +27,7 @@ async def handle_block(brief=False):
             base = conf.get("scan", "").replace("/tx/", "")
             buttons.append(
                 InlineKeyboardButton(
-                    f"View {name}", url=f"{base}/address/{WALLET_ADDRESS}"
+                    f"View {name}", url=f"{base}/address/{SETTINGS.wallet_address}"
                 )
             )
         else:
@@ -40,8 +43,8 @@ async def handle_block(brief=False):
 
     kb = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
 
-    kb.append([InlineKeyboardButton("🔄 Refresh", callback_data="back:crypto")])
-    kb.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
+    kb.append([InlineKeyboardButton("🔄 Refresh", callback_data="scanner:balances")])
+    kb.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
 
     return {
         "text": text,

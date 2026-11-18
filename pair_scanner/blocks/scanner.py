@@ -13,6 +13,7 @@ from ..db.pairs import (
 from ..health import scanner_health
 from ..helpers import escape_markdown, format_timestamp
 from ..monitors import run_sell_all, run_strategy_monitor
+from ..settings import SETTINGS
 from ..w3.tools import fetch_eth_usd_price
 from . import pairs, positions
 
@@ -195,12 +196,24 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         report = await scanner_health()
         alerts = report["alerts"]
         header = "🚨 *SCANNER HEALTH ALERT*" if alerts else "💚 *SCANNER HEALTH OK*"
+        dashboard = (
+            [
+                [
+                    InlineKeyboardButton(
+                        "🔧 Open database dashboard", url=SETTINGS.db_dashboard_url
+                    )
+                ]
+            ]
+            if report.get("db_problem") and SETTINGS.db_dashboard_url
+            else []
+        )
         await query.edit_message_text(
             f"{header}\n\n"
             + ("\n".join(f"• {a}" for a in alerts) + "\n\n" if alerts else "")
             + report["text"],
             reply_markup=InlineKeyboardMarkup(
-                [
+                dashboard
+                + [
                     [
                         InlineKeyboardButton(
                             "🔄 Refresh", callback_data="scanner:health"

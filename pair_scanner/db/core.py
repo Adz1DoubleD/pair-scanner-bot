@@ -20,7 +20,7 @@ async def get_db_pool():
     async with _pool_lock:
         if _pool is None:
             if not SETTINGS.db_url:
-                raise RuntimeError("SCANNER_DB_URL is not set")
+                raise RuntimeError(f"{SETTINGS.env_prefix}DB_URL is not set")
             url = urlparse(SETTINGS.db_url)
             _pool = await aiomysql.create_pool(
                 host=url.hostname,

@@ -9,7 +9,7 @@ from pair_scanner import start_scanner_bot, stop_scanner_bot
 
 async def main():
     load_dotenv()
-    sentry_sdk.init(dsn=os.environ.get("SCANNER_SENTRY_DSN"))
+    sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"))
     try:
         await start_scanner_bot()
     except ValueError as e:

@@ -270,13 +270,13 @@ def test_every_button_except_close_and_blank_starts_with_scanner():
 async def test_start_needs_its_settings(monkeypatch):
     for name in ("token", "db_url", "wallet_address"):
         monkeypatch.setattr(SETTINGS, name, None)
-    for var in ("SCANNER_BOT_TOKEN", "SCANNER_DB_URL", "SCANNER_WALLET_ADDRESS"):
+    for var in ("BOT_TOKEN", "DB_URL", "WALLET_ADDRESS"):
         monkeypatch.delenv(var, raising=False)
 
     with pytest.raises(ValueError) as e:
         await pair_scanner.start_scanner_bot()
 
-    for var in ("SCANNER_BOT_TOKEN", "SCANNER_DB_URL", "SCANNER_WALLET_ADDRESS"):
+    for var in ("BOT_TOKEN", "DB_URL", "WALLET_ADDRESS"):
         assert var in str(e.value)
 
 
@@ -359,6 +359,7 @@ def start_env(monkeypatch, jq, make_cursor, patch_session):
     monkeypatch.setattr(pair_scanner, "close_w3", AsyncMock())
     monkeypatch.setattr(SETTINGS, "db_url", "mysql://u:p@h/db")
     monkeypatch.setattr(SETTINGS, "token", None)
+    monkeypatch.delenv("BOT_TOKEN", raising=False)
     monkeypatch.delenv("SCANNER_BOT_TOKEN", raising=False)
     built = []
     monkeypatch.setattr(
@@ -391,7 +392,7 @@ async def test_inside_a_host_without_a_token_it_uses_the_hosts_bot(start_env):
 
 @pytest.mark.asyncio
 async def test_on_its_own_it_still_needs_a_token(start_env):
-    with pytest.raises(ValueError, match="SCANNER_BOT_TOKEN"):
+    with pytest.raises(ValueError, match="BOT_TOKEN"):
         await pair_scanner.start_scanner_bot()
 
 

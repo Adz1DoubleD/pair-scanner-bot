@@ -200,11 +200,13 @@ async def start_scanner_bot(share_with=None, **options):
         )
     async with db_session() as cur:
         await cur.execute(
-            "SELECT (SELECT COUNT(*) FROM pairs), (SELECT COUNT(*) FROM positions)"
+            "SELECT (SELECT COUNT(*) FROM pairs) AS pairs, "
+            "(SELECT COUNT(*) FROM positions) AS positions"
         )
-        pairs, positions = await cur.fetchone()
+        counts = await cur.fetchone()
     print(
-        f"✅ Pair scanner database ready: {pairs} pairs, {positions} positions, "
+        f"✅ Pair scanner database ready: {counts['pairs']} pairs, "
+        f"{counts['positions']} positions, "
         f"{len(OPTIONS)} settings"
     )
 

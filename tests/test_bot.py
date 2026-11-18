@@ -351,7 +351,9 @@ async def test_clearing_asks_first_then_clears(monkeypatch, what, clear_fn):
 @pytest.fixture
 def start_env(monkeypatch, jq, make_cursor, patch_session):
     monkeypatch.setattr(pair_scanner, "init_scanner_db", AsyncMock(return_value={}))
-    patch_session(pair_scanner, make_cursor(fetchone=[(12, 3)] * 5))
+    patch_session(
+        pair_scanner, make_cursor(fetchone=[{"pairs": 12, "positions": 3}] * 5)
+    )
     monkeypatch.setattr(pair_scanner, "refresh_networks", lambda: None)
     monkeypatch.setattr(pair_scanner, "close_db", AsyncMock())
     monkeypatch.setattr(pair_scanner, "close_w3", AsyncMock())

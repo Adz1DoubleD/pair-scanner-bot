@@ -63,7 +63,7 @@ await start_scanner_bot(share_with=application, wallet_address=..., private_key=
 await stop_scanner_bot()
 ```
 
-The scanner still runs its own bot (`SCANNER_BOT_TOKEN`), so its jobs, alerts and buttons work the same either way. Any setting can be passed as a keyword instead of an environment variable. The host can show the scanner's screens in its own menus, and forward any button whose data starts with `scanner:` to `handle_button`, and text replies to `handle_text_input`:
+Inside a host, `SCANNER_BOT_TOKEN` is optional. Without it, the scanner uses the host's bot: its jobs run on the host's job queue and its alerts come from the host's bot. With it, the scanner runs its own bot alongside the host's. Any setting can be passed as a keyword instead of an environment variable. The host can show the scanner's screens in its own menus, and forward any button whose data starts with `scanner:` to `handle_button`, and text replies to `handle_text_input`:
 
 - `scanner_block(context, brief=False)` is the scanner dashboard; `brief=True` gives a short summary for a daily message.
 - `balances_block(brief=False)` shows the wallet's balance on each network.

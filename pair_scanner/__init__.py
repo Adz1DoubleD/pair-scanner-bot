@@ -176,11 +176,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_scanner_bot(share_with=None, **options):
     setup(**options)
-    missing = [
-        ENV_VARS[name]
-        for name in ("token", "owner_id", "db_url", "wallet_address")
-        if not getattr(SETTINGS, name)
-    ]
+    required = ("owner_id", "db_url", "wallet_address")
+    if share_with is None:
+        required = ("token", *required)
+    missing = [ENV_VARS[name] for name in required if not getattr(SETTINGS, name)]
     if missing:
         raise ValueError(f"Pair scanner needs these settings: {', '.join(missing)}")
     if not SETTINGS.alerts_chat_id:
@@ -200,6 +199,14 @@ async def start_scanner_bot(share_with=None, **options):
             f"{copied['pairs']} pairs, {copied['positions']} positions"
         )
 
+    mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
+    if share_with is not None and not SETTINGS.token:
+        jobs.application = share_with
+        jobs.shares_host = True
+        jobs.start_jobs(share_with)
+        print(f"🚀 Pair scanner running on the host's bot ({mode})")
+        return share_with
+
     application = Application.builder().token(SETTINGS.token).build()
     application.add_handler(CommandHandler("start", command_start))
     application.add_handler(
@@ -218,9 +225,9 @@ async def start_scanner_bot(share_with=None, **options):
     await application.initialize()
     await application.start()
     jobs.application = application
+    jobs.shares_host = False
     jobs.start_jobs(application)
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-    mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
     print(f"🚀 Pair scanner bot initialised and polling ({mode})")
     return application
 
@@ -229,12 +236,17 @@ async def stop_scanner_bot():
     application = jobs.application
     if application is not None:
         await jobs.stop_jobs(application)
-        if application.updater and application.updater.running:
+        if jobs.shares_host:
+            for name in jobs.JOBS:
+                for job in application.job_queue.get_jobs_by_name(name):
+                    job.schedule_removal()
+        elif application.updater and application.updater.running:
             await application.updater.stop()
-        if application.running:
+        if not jobs.shares_host and application.running:
             await application.stop()
-        if application._initialized:
+        if not jobs.shares_host and application._initialized:
             await application.shutdown()
         jobs.application = None
+        jobs.shares_host = False
     await close_w3()
     await close_db()

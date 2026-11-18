@@ -25,7 +25,7 @@ from .db import close_db, init_scanner_db
 from .db.pairs import pairs_get_by_status
 from .health import scanner_health
 from .networks import refresh_networks
-from .settings import ENV_VARS, OPTIONS, SETTINGS, is_owner, setup
+from .settings import ENV_VARS, OPTIONS, SETTINGS, is_owner, is_test_mode, setup
 from .w3 import close_w3
 
 try:
@@ -200,10 +200,13 @@ async def start_scanner_bot(share_with=None, **options):
         )
 
     mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
+    if is_test_mode():
+        mode = "test mode: no jobs, no trades"
     if share_with is not None and not SETTINGS.token:
         jobs.application = share_with
         jobs.shares_host = True
-        jobs.start_jobs(share_with)
+        if not is_test_mode():
+            jobs.start_jobs(share_with)
         print(f"🚀 Pair scanner running on the host's bot ({mode})")
         return share_with
 
@@ -226,7 +229,8 @@ async def start_scanner_bot(share_with=None, **options):
     await application.start()
     jobs.application = application
     jobs.shares_host = False
-    jobs.start_jobs(application)
+    if not is_test_mode():
+        jobs.start_jobs(application)
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     print(f"🚀 Pair scanner bot initialised and polling ({mode})")
     return application

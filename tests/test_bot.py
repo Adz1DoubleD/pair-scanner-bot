@@ -83,13 +83,13 @@ async def test_home_menu_shows_watch_only(monkeypatch):
         "scanner:home",
         "scanner:balances",
         "scanner:settings",
-        "scanner:close",
+        "cancel",
     ]
 
 
 @pytest.mark.asyncio
 async def test_close_deletes_the_message():
-    update, context = press("scanner:close")
+    update, context = press("cancel")
 
     await pair_scanner.handle_button(update, context)
 
@@ -216,7 +216,7 @@ async def test_text_without_a_settings_prompt_is_ignored(saved):
     assert saved == []
 
 
-def test_every_button_stays_inside_the_scanner():
+def test_every_button_except_close_and_blank_starts_with_scanner():
     root = Path(pair_scanner.__file__).parent
     for path in root.rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -230,7 +230,11 @@ def test_every_button_stays_inside_the_scanner():
                     and isinstance(value.values[0], ast.Constant)
                     else None
                 )
-                assert text is None or text.startswith("scanner:"), (path, text)
+                assert (
+                    text is None
+                    or text in ("cancel", "ignore")
+                    or text.startswith("scanner:")
+                ), (path, text)
 
 
 @pytest.mark.asyncio
@@ -245,3 +249,14 @@ async def test_start_needs_its_settings(monkeypatch):
 
     for var in ("SCANNER_BOT_TOKEN", "SCANNER_DB_URL", "SCANNER_WALLET_ADDRESS"):
         assert var in str(e.value)
+
+
+def test_the_bot_listens_for_its_buttons_close_and_blank():
+    import re
+
+    source = Path(pair_scanner.__file__).read_text(encoding="utf-8")
+    pattern = re.search(r'pattern=r"(.+?)"', source).group(1)
+    for data in ("scanner:menu", "cancel", "ignore"):
+        assert re.match(pattern, data)
+    for data in ("cancelled", "back:scanner", "troubleshooter:home"):
+        assert not re.match(pattern, data)

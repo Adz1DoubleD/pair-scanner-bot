@@ -44,7 +44,7 @@ async def balances_block(brief=False):
     kb = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
 
     kb.append([InlineKeyboardButton("🔄 Refresh", callback_data="scanner:balances")])
-    kb.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    kb.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
         "text": text,

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import sentry_sdk
 
-from .db.pairs import clear_archive, db_total_mb, pairs_get_stats
+from .db.pairs import pairs_get_stats
 from .networks import NETWORKS
 from .settings import OPTIONS, SETTINGS
 from .w3 import get_w3_service
@@ -17,16 +17,6 @@ async def scanner_health():
     strategy_on = int(OPTIONS.get("strategy_enabled", 0) or 0) == 1
     trading_on = int(OPTIONS.get("trading_enabled", 0) or 0) == 1
     alerts = []
-
-    try:
-        before = await db_total_mb()
-        limit = float(OPTIONS.get("db_cleanup_mb") or 0)
-        if limit and before >= limit:
-            await clear_archive()
-            after = await db_total_mb()
-            alerts.append(f"🧹 *Database auto-cleaned* — {before:.2f} → {after:.2f} MB")
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
 
     networks = sorted(NETWORKS.items())
     rpc_checks = await asyncio.gather(
@@ -104,7 +94,16 @@ async def scanner_health():
         f"Strategy: {'🟢 ON' if strategy_on else '🔴 OFF'}",
         f"Trading: {'🟢 ON' if trading_on else '👀 Watch-only'}",
     ]
-    sections = (("🌐 *Web3*", rpc_lines), ("🛰️ *Token Monitors*", monitors))
+    wallet = [
+        f"ETH: {total_eth:.4f}"
+        if not failed
+        else f"ETH: check failed for {', '.join(failed)}"
+    ]
+    sections = (
+        ("🌐 *Web3*", rpc_lines),
+        ("💰 *Wallet*", wallet),
+        ("🛰️ *Token Monitors*", monitors),
+    )
     text = "\n\n".join(
         title
         + "\n"

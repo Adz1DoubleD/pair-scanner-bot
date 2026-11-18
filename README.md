@@ -23,6 +23,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.
 - **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default), the health check switches the monitors off and alerts you.
+- **Its own health check.** Every `health_check_interval` minutes it checks the RPCs, the wallet balance and the pairs feed, and only messages you when something's wrong. **🩺 Health** on the dashboard shows the same check whenever you want.
 - **Watch-only stops new buys, not sells.** Positions it already holds keep their stop-losses.
 
 ## Run it on its own
@@ -74,7 +75,7 @@ Inside a host, the bot token is optional. Without it, the scanner uses the host'
 
 - `scanner_block(context, brief=False)` is the scanner dashboard; `brief=True` gives a short summary for a daily message.
 - `balances_block(brief=False)` shows the wallet's balance on each network.
-- `scanner_health()` returns the RPC, balance and monitor status, so a host can fold it into its own health check.
+- `scanner_health()` returns the RPC, wallet and monitor status as text, plus its alerts, so a host can show them in its own health check if it wants. It only reads: it never changes settings or cleans the database.
 
 A host that already ran a scanner can hand over its data on the first start. Pass `import_settings_from="settings"`, the name of the host's single-row settings table, and, if the scanner has its own database, `import_from_db_url` with the host's database URL. The scanner then copies, once and in one transaction, the matching settings into `scanner_settings`, and the host's `pairs` and `positions` rows with their original IDs, into its own tables if they're empty. It starts with trading on, since the host was already trading. It only reads from the host's database; the old tables stay there until the host removes them.
 

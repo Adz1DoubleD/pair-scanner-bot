@@ -25,6 +25,8 @@ def fake_db(make_cursor, tables=(), stored=(), host=None):
 
         async def _fetchone(self):
             sql, *params = self.calls[-1]
+            if sql.startswith("SELECT (SELECT COUNT(*) FROM pairs)"):
+                return {"pairs": 12, "positions": 3}
             if sql.startswith("SHOW TABLES LIKE"):
                 name = params[0][0] if params else sql.split("'")[1]
                 return {"t": name} if name in self.tables else None
@@ -42,7 +44,7 @@ def fake_db(make_cursor, tables=(), stored=(), host=None):
 
 @pytest.mark.asyncio
 async def test_a_new_database_gets_its_tables_and_safe_defaults(
-    make_cursor, patch_session
+    make_cursor, patch_session, capsys
 ):
     cur = patch_session(db.schema, fake_db(make_cursor))
     OPTIONS["trading_enabled"] = 1
@@ -51,6 +53,10 @@ async def test_a_new_database_gets_its_tables_and_safe_defaults(
 
     assert imported == {"settings": 0, "pairs": 0, "positions": 0}
     assert cur.tables == {"pairs", "positions", "scanner_settings"}
+    assert capsys.readouterr().out.splitlines() == [
+        f"✅ Pair scanner database ready: 12 pairs, 3 positions, "
+        f"{len(OPTION_DEFAULTS)} settings"
+    ]
     assert OPTIONS == OPTION_DEFAULTS
     assert OPTIONS["trading_enabled"] == 0
 
@@ -225,6 +231,8 @@ async def test_settings_and_history_are_copied_from_the_hosts_database(
     class Cursor(make_cursor):
         async def _fetchone(self):
             sql = self.calls[-1][0]
+            if sql.startswith("SELECT (SELECT COUNT(*) FROM pairs)"):
+                return {"pairs": 2, "positions": 1}
             if sql.startswith("SELECT COUNT(*)"):
                 return {"n": 0}
             return None

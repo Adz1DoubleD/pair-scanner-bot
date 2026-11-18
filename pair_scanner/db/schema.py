@@ -162,4 +162,20 @@ async def init_scanner_db():
     for row in rows:
         if row["name"] in OPTION_DEFAULTS:
             OPTIONS[row["name"]] = option_value(row["name"], row["value"])
+
+    if any(copied.values()):
+        print(
+            f"✅ Pair scanner copied from the host: {copied['settings']} settings, "
+            f"{copied['pairs']} pairs, {copied['positions']} positions"
+        )
+    async with db_session() as cur:
+        await cur.execute(
+            "SELECT (SELECT COUNT(*) FROM pairs) AS pairs, "
+            "(SELECT COUNT(*) FROM positions) AS positions"
+        )
+        counts = await cur.fetchone()
+    print(
+        f"✅ Pair scanner database ready: {counts['pairs']} pairs, "
+        f"{counts['positions']} positions, {len(OPTIONS)} settings"
+    )
     return copied

@@ -73,6 +73,7 @@ OPTION_DEFAULTS = {
     "dead_token_threshold": 2.0,
     "dead_token_hours": 1.0,
     "health_check_interval": 60,
+    "db_cleanup_mb": 4.0,
     "eth_bal_snapshot": 0.0,
     "eth_bal_snapshot_ts": 0.0,
 }

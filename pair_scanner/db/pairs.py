@@ -119,6 +119,37 @@ async def pairs_mark_audit_complete(address, final_status):
             )
 
 
+async def clear_archive():
+    async with db_session() as cur:
+        placeholders = ",".join(["%s"] * len(PAIR_STATUS))
+        await cur.execute(
+            f"DELETE FROM pairs WHERE status IN ({placeholders})",
+            tuple(PAIR_STATUS),
+        )
+        await cur.execute(
+            """
+            DELETE FROM positions
+            WHERE status = 'completed'
+              AND last_updated < NOW() - INTERVAL 7 DAY
+            """
+        )
+        await cur.execute("OPTIMIZE TABLE pairs, positions")
+
+
+async def db_total_mb():
+    async with db_session() as cur:
+        await cur.execute("SET SESSION information_schema_stats_expiry = 0")
+        await cur.execute(
+            """
+            SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS mb
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+            """
+        )
+        row = await cur.fetchone()
+        return float((row or {}).get("mb") or 0)
+
+
 async def pairs_reset_db():
     async with db_session() as cur:
         await cur.execute("TRUNCATE TABLE pairs")

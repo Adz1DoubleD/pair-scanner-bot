@@ -44,12 +44,13 @@ GROUPS = {
         ],
     ),
     "schedule": (
-        "⏰ Schedule",
+        "⏰ Schedule & Upkeep",
         [
             "pairs_monitor_interval",
             "sell_monitor_interval",
             "strategy_monitor_interval",
             "health_check_interval",
+            "db_cleanup_mb",
         ],
     ),
 }
@@ -82,6 +83,7 @@ LABELS = {
     "sell_monitor_interval": ("Sell Monitor", "min"),
     "strategy_monitor_interval": ("Strategy Monitor", "min"),
     "health_check_interval": ("Health Check", "min"),
+    "db_cleanup_mb": ("Auto-clean Database At", "MB"),
 }
 
 TOGGLES = {

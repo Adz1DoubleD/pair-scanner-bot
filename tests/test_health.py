@@ -93,3 +93,40 @@ async def test_watch_only_is_shown(chain):
     chain()
 
     assert "Trading: 👀 Watch-only" in (await health.scanner_health())["text"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sizes,cleaned",
+    [([4.5, 1.2], True), ([3.9], False)],
+    ids=["over-the-limit", "under-the-limit"],
+)
+async def test_the_database_is_cleaned_near_its_limit(
+    monkeypatch, chain, sizes, cleaned
+):
+    chain()
+    monkeypatch.setattr(health, "db_total_mb", AsyncMock(side_effect=sizes))
+    clear = AsyncMock()
+    monkeypatch.setattr(health, "clear_archive", clear)
+
+    report = await health.scanner_health()
+
+    assert clear.await_count == int(cleaned)
+    assert (
+        "🧹 *Database auto-cleaned* — 4.50 → 1.20 MB" in report["alerts"]
+    ) is cleaned
+
+
+@pytest.mark.asyncio
+async def test_a_failed_clean_goes_to_sentry_not_the_alerts(monkeypatch, chain):
+    chain()
+    monkeypatch.setattr(
+        health, "db_total_mb", AsyncMock(side_effect=RuntimeError("db down"))
+    )
+    reported = []
+    monkeypatch.setattr(health.sentry_sdk, "capture_exception", reported.append)
+
+    report = await health.scanner_health()
+
+    assert report["alerts"] == []
+    assert str(reported[0]) == "db down"

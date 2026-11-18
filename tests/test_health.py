@@ -21,6 +21,10 @@ def database(monkeypatch, make_cursor, patch_session):
 
 @pytest.fixture
 def chain(monkeypatch, database):
+    monkeypatch.setattr(
+        health, "STARTED_AT", datetime.now(timezone.utc) - timedelta(days=1)
+    )
+
     def setup(rpcs=((["A 🟢 5ms"], []),), balances=(0.5,), stats=None):
         monkeypatch.setattr(
             health, "NETWORKS", {f"Net{i}": {} for i in range(len(balances))}
@@ -121,14 +125,48 @@ async def test_checking_health_never_cleans_the_database(monkeypatch, chain):
 
 
 @pytest.mark.asyncio
-async def test_watch_only_reports_low_eth_but_switches_nothing_off(chain):
+async def test_watch_only_never_alerts_about_eth(chain):
     OPTIONS.update(trading_enabled=0, pairs_enabled=1)
     chain(balances=(0.001,))
 
     report = await health.scanner_health()
 
     assert report["low_eth"] is False
-    assert any("LOW ETH BALANCE" in a for a in report["alerts"])
+    assert not any("ETH" in a for a in report["alerts"])
+    assert "ETH: 0.0010" in report["text"]
+
+
+@pytest.mark.asyncio
+async def test_a_fresh_start_gets_time_to_find_pairs(chain, database, monkeypatch):
+    chain(stats=({"awaiting": 0}, None, None, None))
+    monkeypatch.setattr(health, "STARTED_AT", datetime.now(timezone.utc))
+
+    assert (await health.scanner_health())["alerts"] == []
+
+    monkeypatch.setattr(
+        health, "STARTED_AT", datetime.now(timezone.utc) - timedelta(days=1)
+    )
+    chain(stats=({"awaiting": 0}, None, None, None))
+    database()
+    alerts = (await health.scanner_health())["alerts"]
+    assert alerts == ["📉 *LOW PAIRS PULSE*: no new pairs found"]
+
+
+@pytest.mark.asyncio
+async def test_old_pairs_count_from_the_start_not_before_it(chain, monkeypatch):
+    long_ago = datetime.now(timezone.utc) - timedelta(days=13)
+    chain(stats=({"awaiting": 0}, None, None, {"found_at": long_ago}))
+    monkeypatch.setattr(health, "STARTED_AT", datetime.now(timezone.utc))
+
+    assert (await health.scanner_health())["alerts"] == []
+
+
+@pytest.mark.asyncio
+async def test_test_mode_skips_the_pairs_checks(chain, monkeypatch):
+    monkeypatch.setattr(health.SETTINGS, "test_mode", True)
+    chain(stats=({"awaiting": 99}, None, None, None))
+
+    assert (await health.scanner_health())["alerts"] == []
 
 
 @pytest.mark.asyncio

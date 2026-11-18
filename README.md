@@ -22,7 +22,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Owner only.** The bot answers only `OWNER_ID`.
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.
-- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default) while trading is on, the health check switches the monitors off and alerts you. In watch-only it just tells you.
+- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default) while trading is on, the health check switches the monitors off and alerts you. In watch-only the balance only shows on the Health screen, because nothing is bought.
 - **Its own health check.** Every `health_check_interval` minutes it checks the RPCs, the wallet balance, the database (size, read-only, offline) and the pairs feed, and only messages you when something's wrong. When the database nears `db_cleanup_mb` it clears the archive first. **🩺 Health** on the dashboard shows the same check whenever you want.
 - **Watch-only stops new buys, not sells.** Positions it already holds keep their stop-losses.
 

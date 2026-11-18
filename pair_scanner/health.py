@@ -6,11 +6,12 @@ import sentry_sdk
 from .db.core import db_session
 from .db.pairs import db_total_mb, pairs_get_stats
 from .networks import NETWORKS
-from .settings import OPTIONS, SETTINGS
+from .settings import OPTIONS, SETTINGS, is_test_mode
 from .w3 import get_w3_service
 from .w3.tools import fetch_network_bal
 
 PAIRS_BACKLOG_LIMIT = 10
+STARTED_AT = datetime.now(timezone.utc)
 
 
 async def scanner_health():
@@ -82,12 +83,12 @@ async def scanner_health():
 
     minimum = float(OPTIONS.get("min_eth_balance") or 0)
     eth_low = not failed and total_eth < minimum
-    if eth_low:
+    if trading_on and eth_low:
         alerts.append(f"⚠️ *LOW ETH BALANCE*: `{total_eth:.4f} ETH`")
-    elif failed and total_eth < minimum:
+    elif trading_on and failed and total_eth < minimum:
         alerts.append(f"⚠️ *ETH BALANCE UNKNOWN*: check failed for {', '.join(failed)}")
 
-    if pairs_on:
+    if pairs_on and not is_test_mode():
         try:
             stats, _, _, last_scan = await pairs_get_stats(days=1)
         except Exception as e:
@@ -101,17 +102,16 @@ async def scanner_health():
                 minutes=float(OPTIONS.get("health_check_interval") or 60)
             )
             found = (last_scan or {}).get("found_at")
-            if found is None:
+            if found is not None and found.tzinfo is None:
+                found = found.replace(tzinfo=timezone.utc)
+            age = datetime.now(timezone.utc) - max(found or STARTED_AT, STARTED_AT)
+            if age >= interval and found is None:
                 alerts.append("📉 *LOW PAIRS PULSE*: no new pairs found")
-            else:
-                if found.tzinfo is None:
-                    found = found.replace(tzinfo=timezone.utc)
-                age = datetime.now(timezone.utc) - found
-                if age >= interval:
-                    hours, minutes = divmod(int(age.total_seconds() // 60), 60)
-                    alerts.append(
-                        f"📉 *LOW PAIRS PULSE*: no new pairs for {hours}h {minutes}m"
-                    )
+            elif age >= interval:
+                hours, minutes = divmod(int(age.total_seconds() // 60), 60)
+                alerts.append(
+                    f"📉 *LOW PAIRS PULSE*: no new pairs for {hours}h {minutes}m"
+                )
 
     monitors = [
         f"Pairs: {'🟢 ON' if pairs_on else '🔴 OFF'}",

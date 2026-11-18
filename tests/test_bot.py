@@ -193,16 +193,45 @@ async def test_editing_a_number(saved):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "name,text", [("slippage", "lots"), ("pairs_monitor_interval", "0")]
+    "name,text,message",
+    [
+        ("slippage", "lots", "Slippage must be between 0 and 50%"),
+        ("slippage", "51", "Slippage must be between 0 and 50%"),
+        (
+            "pairs_monitor_interval",
+            "0",
+            "Pairs Monitor must be between 1 and 10080 min",
+        ),
+        ("buy_amount_eth", "100", "Buy Amount must be between 0.00001 and 10 ETH"),
+        ("max_positions", "51", "Max Positions must be between 1 and 50"),
+        ("strat_min_liq_usd", "-1", "Min Liquidity must be 0 or more USD"),
+    ],
 )
-async def test_bad_values_are_asked_again(saved, name, text):
+async def test_bad_values_are_asked_again(saved, name, text, message):
     user_data = {"state": f"scanner:settings:{name}", "last_msg_id": 4}
 
     shown = await type_value(text, user_data)
 
     assert saved == []
-    assert shown["text"].startswith("⚠️ That needs to be a number")
+    assert shown["text"] == f"⚠️ {message}. Send it again:"
     assert user_data["state"] == f"scanner:settings:{name}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name,text", [("max_positions", "50"), ("slippage", "0"), ("buy_amount_eth", "10")]
+)
+async def test_values_at_the_limits_are_accepted(saved, name, text):
+    user_data = {"state": f"scanner:settings:{name}", "last_msg_id": 4}
+
+    await type_value(text, user_data)
+
+    assert saved == [(name, type(OPTIONS[name])(float(text)))]
+
+
+def test_every_number_setting_has_limits():
+    numbers = set(settings_screen.LABELS) - settings_screen.TOGGLES
+    assert numbers == set(settings_screen.LIMITS)
 
 
 @pytest.mark.asyncio

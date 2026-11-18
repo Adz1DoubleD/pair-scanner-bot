@@ -193,9 +193,12 @@ async def start_scanner_bot(share_with=None, **options):
             lambda record: not any(n in record.getMessage() for n in NOISE)
         )
 
-    imported = await init_scanner_db()
-    if imported:
-        print(f"✅ Pair scanner copied {imported} settings from the host")
+    copied = await init_scanner_db()
+    if any(copied.values()):
+        print(
+            f"✅ Pair scanner copied from the host: {copied['settings']} settings, "
+            f"{copied['pairs']} pairs, {copied['positions']} positions"
+        )
 
     application = Application.builder().token(SETTINGS.token).build()
     application.add_handler(CommandHandler("start", command_start))

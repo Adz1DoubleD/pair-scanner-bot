@@ -69,7 +69,7 @@ The scanner still runs its own bot (`SCANNER_BOT_TOKEN`), so its jobs, alerts an
 - `balances_block(brief=False)` shows the wallet's balance on each network.
 - `scanner_health()` returns the RPC, balance and monitor status, so a host can fold it into its own health check.
 
-A host that already kept scanner settings in its own single-row table can pass `import_settings_from="settings"` (the table name). On the first start the scanner copies any matching columns into `scanner_settings`, once, and starts with trading on, since the host was already trading.
+A host that already ran a scanner can hand over its data on the first start. Pass `import_settings_from="settings"`, the name of the host's single-row settings table, and, if the scanner has its own database, `import_from_db_url` with the host's database URL. The scanner then copies, once and in one transaction, the matching settings into `scanner_settings`, and the host's `pairs` and `positions` rows with their original IDs, into its own tables if they're empty. It starts with trading on, since the host was already trading. It only reads from the host's database; the old tables stay there until the host removes them.
 
 ## Development
 

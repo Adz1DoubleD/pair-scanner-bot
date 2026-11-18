@@ -61,7 +61,6 @@ from pair_scanner import start_scanner_bot, stop_scanner_bot
 
 await start_scanner_bot(
     share_with=application,
-    env_prefix="SCANNER_",
     owner_id=OWNER_ID,
     alerts_chat_id=ALERTS_CHAT_ID,
 )
@@ -69,7 +68,7 @@ await start_scanner_bot(
 await stop_scanner_bot()
 ```
 
-Inside a host, pass `env_prefix` so the scanner reads its settings from prefixed names and never clashes with the host's own: with `env_prefix="SCANNER_"` it reads `SCANNER_DB_URL`, `SCANNER_WALLET_ADDRESS` and so on. Settings the host already has, like the owner and alerts chat, can be passed as keywords instead.
+Inside a host (with `share_with`), the scanner reads the same names with a `SCANNER_` prefix, such as `SCANNER_DB_URL` and `SCANNER_WALLET_ADDRESS`, so it never clashes with the host's own settings. Pass `env_prefix=` to use a different prefix. Settings the host already has, like the owner and alerts chat, can be passed as keywords instead.
 
 Inside a host, the bot token is optional. Without it, the scanner uses the host's bot: its jobs run on the host's job queue and its alerts come from the host's bot. With it, the scanner runs its own bot alongside the host's. Any setting can be passed as a keyword instead of an environment variable. The host can show the scanner's screens in its own menus, and forward any button whose data starts with `scanner:` to `handle_button`, and text replies to `handle_text_input`:
 

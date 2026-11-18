@@ -391,6 +391,15 @@ async def test_inside_a_host_without_a_token_it_uses_the_hosts_bot(start_env):
 
 
 @pytest.mark.asyncio
+async def test_inside_a_host_it_reads_scanner_names(start_env, monkeypatch):
+    monkeypatch.setattr(SETTINGS, "wallet_address", None)
+    monkeypatch.delenv("SCANNER_WALLET_ADDRESS", raising=False)
+
+    with pytest.raises(ValueError, match="SCANNER_WALLET_ADDRESS"):
+        await pair_scanner.start_scanner_bot(share_with=start_env.host)
+
+
+@pytest.mark.asyncio
 async def test_on_its_own_it_still_needs_a_token(start_env):
     with pytest.raises(ValueError, match="BOT_TOKEN"):
         await pair_scanner.start_scanner_bot()

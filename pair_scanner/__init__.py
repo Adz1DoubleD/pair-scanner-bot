@@ -174,7 +174,9 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sentry_sdk.capture_exception(context.error)
 
 
-async def start_scanner_bot(share_with=None, env_prefix="", **options):
+async def start_scanner_bot(share_with=None, env_prefix=None, **options):
+    if env_prefix is None:
+        env_prefix = "" if share_with is None else "SCANNER_"
     setup(env_prefix, **options)
     required = ("owner_id", "db_url", "wallet_address")
     if share_with is None:

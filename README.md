@@ -18,8 +18,8 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 
 ## Safety
 
-- **Watch-only by default.** A new install finds and audits pairs and tells you what it *would* buy, but never buys. Turning trading on asks you to confirm, and needs `SCANNER_PRIVATE_KEY`.
-- **Owner only.** The bot answers only `SCANNER_OWNER_ID`.
+- **Watch-only by default.** A new install finds and audits pairs and tells you what it *would* buy, but never buys. Turning trading on asks you to confirm, and needs `PRIVATE_KEY`.
+- **Owner only.** The bot answers only `OWNER_ID`.
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.
 - **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default), the health check switches the monitors off and alerts you.
@@ -41,16 +41,16 @@ Send `/start` to your bot.
 
 | Environment variable | |
 |---|---|
-| `SCANNER_BOT_TOKEN` | Required. Your bot's token |
-| `SCANNER_OWNER_ID` | Required. Your Telegram user ID; the bot answers nobody else |
-| `SCANNER_DB_URL` | Required. `mysql://user:pass@host:3306/db`. Tables are created on first start: `pairs`, `positions` and `scanner_settings` |
-| `SCANNER_WALLET_ADDRESS` | Required. The wallet it watches and trades from |
-| `SCANNER_PRIVATE_KEY` | Only to trade. Without it the bot stays watch-only |
-| `SCANNER_ALERTS_CHAT_ID` | Where alerts go. Defaults to your private chat. For a group or channel, add the bot to it first (as an admin, for a channel) |
-| `SCANNER_ALCHEMY_API_KEY`, `SCANNER_ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
-| `SCANNER_TIMEZONE` | Default `Europe/London` |
-| `SCANNER_SENTRY_DSN` | Optional error reporting when run on its own |
-| `SCANNER_TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
+| `BOT_TOKEN` | Required. Your bot's token |
+| `OWNER_ID` | Required. Your Telegram user ID; the bot answers nobody else |
+| `DB_URL` | Required. `mysql://user:pass@host:3306/db`. Tables are created on first start: `pairs`, `positions` and `scanner_settings` |
+| `WALLET_ADDRESS` | Required. The wallet it watches and trades from |
+| `PRIVATE_KEY` | Only to trade. Without it the bot stays watch-only |
+| `ALERTS_CHAT_ID` | Where alerts go. Defaults to your private chat. For a group or channel, add the bot to it first (as an admin, for a channel) |
+| `ALCHEMY_API_KEY`, `ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
+| `TIMEZONE` | Default `Europe/London` |
+| `SENTRY_DSN` | Optional error reporting when run on its own |
+| `TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.
 
@@ -59,12 +59,19 @@ Trading limits, audit thresholds, sell rules and schedules are changed in the bo
 ```python
 from pair_scanner import start_scanner_bot, stop_scanner_bot
 
-await start_scanner_bot(share_with=application, wallet_address=..., private_key=...)
+await start_scanner_bot(
+    share_with=application,
+    env_prefix="SCANNER_",
+    owner_id=OWNER_ID,
+    alerts_chat_id=ALERTS_CHAT_ID,
+)
 ...
 await stop_scanner_bot()
 ```
 
-Inside a host, `SCANNER_BOT_TOKEN` is optional. Without it, the scanner uses the host's bot: its jobs run on the host's job queue and its alerts come from the host's bot. With it, the scanner runs its own bot alongside the host's. Any setting can be passed as a keyword instead of an environment variable. The host can show the scanner's screens in its own menus, and forward any button whose data starts with `scanner:` to `handle_button`, and text replies to `handle_text_input`:
+Inside a host, pass `env_prefix` so the scanner reads its settings from prefixed names and never clashes with the host's own: with `env_prefix="SCANNER_"` it reads `SCANNER_DB_URL`, `SCANNER_WALLET_ADDRESS` and so on. Settings the host already has, like the owner and alerts chat, can be passed as keywords instead.
+
+Inside a host, the bot token is optional. Without it, the scanner uses the host's bot: its jobs run on the host's job queue and its alerts come from the host's bot. With it, the scanner runs its own bot alongside the host's. Any setting can be passed as a keyword instead of an environment variable. The host can show the scanner's screens in its own menus, and forward any button whose data starts with `scanner:` to `handle_button`, and text replies to `handle_text_input`:
 
 - `scanner_block(context, brief=False)` is the scanner dashboard; `brief=True` gives a short summary for a daily message.
 - `balances_block(brief=False)` shows the wallet's balance on each network.

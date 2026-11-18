@@ -11,16 +11,16 @@ SECRETS = (
 )
 
 ENV_VARS = {
-    "token": "SCANNER_BOT_TOKEN",
-    "owner_id": "SCANNER_OWNER_ID",
-    "alerts_chat_id": "SCANNER_ALERTS_CHAT_ID",
-    "db_url": "SCANNER_DB_URL",
-    "wallet_address": "SCANNER_WALLET_ADDRESS",
-    "private_key": "SCANNER_PRIVATE_KEY",
-    "alchemy_api_key": "SCANNER_ALCHEMY_API_KEY",
-    "ankr_api_key": "SCANNER_ANKR_API_KEY",
-    "timezone": "SCANNER_TIMEZONE",
-    "test_mode": "SCANNER_TEST_MODE",
+    "token": "BOT_TOKEN",
+    "owner_id": "OWNER_ID",
+    "alerts_chat_id": "ALERTS_CHAT_ID",
+    "db_url": "DB_URL",
+    "wallet_address": "WALLET_ADDRESS",
+    "private_key": "PRIVATE_KEY",
+    "alchemy_api_key": "ALCHEMY_API_KEY",
+    "ankr_api_key": "ANKR_API_KEY",
+    "timezone": "TIMEZONE",
+    "test_mode": "TEST_MODE",
 }
 
 
@@ -41,6 +41,7 @@ SETTINGS = Settings(
     ankr_api_key=None,
     timezone="Europe/London",
     test_mode=False,
+    env_prefix="",
     import_settings_from=None,
     import_from_db_url=None,
 )
@@ -89,12 +90,13 @@ def option_value(name, raw):
         return default
 
 
-def setup(**options):
-    unknown = set(options) - set(vars(SETTINGS))
+def setup(env_prefix="", **options):
+    unknown = set(options) - set(vars(SETTINGS)) | ({"env_prefix"} & set(options))
     if unknown:
         raise TypeError(f"Unknown scanner settings: {sorted(unknown)}")
+    SETTINGS.env_prefix = env_prefix
     for name, var in ENV_VARS.items():
-        value = os.environ.get(var)
+        value = os.environ.get(f"{env_prefix}{var}")
         if value:
             setattr(SETTINGS, name, value)
     for name, value in options.items():

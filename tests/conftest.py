@@ -211,6 +211,7 @@ def scanner_settings(monkeypatch):
         "private_key": TEST_KEY,
         "timezone": "Europe/London",
         "test_mode": False,
+        "env_prefix": "",
         "import_settings_from": None,
     }.items():
         monkeypatch.setattr(SETTINGS, name, value)

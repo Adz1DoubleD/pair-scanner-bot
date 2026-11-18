@@ -174,12 +174,16 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sentry_sdk.capture_exception(context.error)
 
 
-async def start_scanner_bot(share_with=None, **options):
-    setup(**options)
+async def start_scanner_bot(share_with=None, env_prefix="", **options):
+    setup(env_prefix, **options)
     required = ("owner_id", "db_url", "wallet_address")
     if share_with is None:
         required = ("token", *required)
-    missing = [ENV_VARS[name] for name in required if not getattr(SETTINGS, name)]
+    missing = [
+        f"{env_prefix}{ENV_VARS[name]}"
+        for name in required
+        if not getattr(SETTINGS, name)
+    ]
     if missing:
         raise ValueError(f"Pair scanner needs these settings: {', '.join(missing)}")
     if not SETTINGS.alerts_chat_id:

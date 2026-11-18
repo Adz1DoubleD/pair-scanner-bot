@@ -19,13 +19,26 @@ def test_printing_settings_never_shows_secrets(monkeypatch):
 
 
 def test_setup_reads_the_environment_then_options(monkeypatch):
-    monkeypatch.setenv("SCANNER_OWNER_ID", "42")
-    monkeypatch.setenv("SCANNER_TIMEZONE", "UTC")
+    monkeypatch.setenv("OWNER_ID", "42")
+    monkeypatch.setenv("TIMEZONE", "UTC")
 
     setup(timezone="Europe/Paris")
 
     assert SETTINGS.owner_id == "42"
     assert SETTINGS.timezone == "Europe/Paris"
+
+
+def test_a_host_prefix_reads_only_the_prefixed_names(monkeypatch):
+    monkeypatch.setattr(SETTINGS, "db_url", None)
+    monkeypatch.setattr(SETTINGS, "wallet_address", None)
+    monkeypatch.setenv("DB_URL", "mysql://host-own/db")
+    monkeypatch.setenv("SCANNER_WALLET_ADDRESS", "0xabc")
+
+    setup("SCANNER_")
+
+    assert SETTINGS.db_url is None
+    assert SETTINGS.wallet_address == "0xabc"
+    assert SETTINGS.env_prefix == "SCANNER_"
 
 
 def test_setup_rejects_unknown_options():

@@ -191,7 +191,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if name == "trading_enabled" and turning_on:
             if not SETTINGS.private_key:
                 await query.answer(
-                    "Set SCANNER_PRIVATE_KEY before turning trading on.",
+                    f"Set {SETTINGS.env_prefix}PRIVATE_KEY before turning trading on.",
                     show_alert=True,
                 )
                 return

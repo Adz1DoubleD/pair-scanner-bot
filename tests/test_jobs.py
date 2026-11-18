@@ -44,7 +44,7 @@ async def test_buy_alert_lists_buys_watched_and_failures(monkeypatch):
     )
     buttons = [b for row in sent["reply_markup"].inline_keyboard for b in row]
     assert buttons[0].url == "https://dexscreener.com/base/0xpair"
-    assert buttons[-1].callback_data == "scanner:close"
+    assert buttons[-1].callback_data == "cancel"
 
 
 @pytest.mark.asyncio

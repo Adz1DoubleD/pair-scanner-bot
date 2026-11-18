@@ -189,7 +189,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
 
     if current_status == "monitoring":
         nav_row.append(
@@ -198,7 +198,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
 
     if next_id:
         nav_row.append(
@@ -207,10 +207,10 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
 
     keyboard.append(nav_row)
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {"text": msg, "reply_markup": InlineKeyboardMarkup(keyboard)}
 
@@ -227,7 +227,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
             "reply_markup": InlineKeyboardMarkup(
                 [
                     [InlineKeyboardButton("🔙 Back", callback_data="scanner:home")],
-                    [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
+                    [InlineKeyboardButton("❌ Close", callback_data="cancel")],
                 ]
             ),
         }
@@ -280,7 +280,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     keyboard.extend(
         [
             [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")],
-            [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
+            [InlineKeyboardButton("❌ Close", callback_data="cancel")],
         ]
     )
 

@@ -37,7 +37,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
             "reply_markup": InlineKeyboardMarkup(
                 [
                     [InlineKeyboardButton("🔄 Refresh", callback_data="scanner:home")],
-                    [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
+                    [InlineKeyboardButton("❌ Close", callback_data="cancel")],
                 ]
             ),
         }
@@ -151,7 +151,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
     keyboard.append(
         [InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive")]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
         "text": stat_text,
@@ -384,7 +384,7 @@ async def _block_archive(context: ContextTypes.DEFAULT_TYPE):
     keyboard.append(
         [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
         "text": text,

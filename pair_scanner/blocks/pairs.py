@@ -108,7 +108,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
 
     nav_row.append(
         InlineKeyboardButton("🔄 Refresh", callback_data=f"scanner:status:{row_id}")
@@ -121,7 +121,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         )
     else:
-        nav_row.append(InlineKeyboardButton(" ", callback_data="scanner:ignore"))
+        nav_row.append(InlineKeyboardButton(" ", callback_data="ignore"))
 
     keyboard.append(nav_row)
     keyboard.append(
@@ -132,7 +132,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
             )
         ]
     )
-    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
         "text": msg,
@@ -304,7 +304,7 @@ async def button_rejected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb.append(
         [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
     )
-    kb.append([InlineKeyboardButton("❌ Close", callback_data="scanner:close")])
+    kb.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     await query.edit_message_text(
         text="❌ *Rejected Audit Breakdown*\n\nSelect a category to view pairs:",

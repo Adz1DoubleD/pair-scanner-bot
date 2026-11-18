@@ -76,7 +76,7 @@ async def home_block():
                     ),
                 ],
                 [InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings")],
-                [InlineKeyboardButton("❌ Close", callback_data="scanner:close")],
+                [InlineKeyboardButton("❌ Close", callback_data="cancel")],
             ]
         ),
     }
@@ -96,10 +96,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
 
-    if data == "scanner:ignore":
+    if data == "ignore":
         return
 
-    if data == "scanner:close":
+    if data == "cancel":
         try:
             await query.message.delete()
         except BadRequest:
@@ -199,7 +199,9 @@ async def start_scanner_bot(share_with=None, **options):
 
     application = Application.builder().token(SETTINGS.token).build()
     application.add_handler(CommandHandler("start", command_start))
-    application.add_handler(CallbackQueryHandler(handle_button, pattern=r"^scanner:"))
+    application.add_handler(
+        CallbackQueryHandler(handle_button, pattern=r"^(scanner:|cancel$|ignore$)")
+    )
     application.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND & ~filters.UpdateType.CHANNEL_POSTS,

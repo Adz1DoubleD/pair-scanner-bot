@@ -39,18 +39,18 @@ Send `/start` to your bot.
 
 ## Settings
 
-| Environment variable | |
-|---|---|
-| `BOT_TOKEN` | Required. Your bot's token |
-| `OWNER_ID` | Required. Your Telegram user ID; the bot answers nobody else |
-| `DB_URL` | Required. `mysql://user:pass@host:3306/db`. Tables are created on first start: `pairs`, `positions` and `scanner_settings` |
-| `WALLET_ADDRESS` | Required. The wallet it watches and trades from |
-| `PRIVATE_KEY` | Only to trade. Without it the bot stays watch-only |
-| `ALERTS_CHAT_ID` | Where alerts go. Defaults to your private chat. For a group or channel, add the bot to it first (as an admin, for a channel) |
-| `ALCHEMY_API_KEY`, `ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
-| `TIMEZONE` | Default `Europe/London` |
-| `SENTRY_DSN` | Optional error reporting when run on its own |
-| `TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
+| Setting | Environment variable | Purpose |
+|---|---|---|
+| `token` | `BOT_TOKEN` | Required. Your bot's token |
+| `owner_id` | `OWNER_ID` | Required. Your Telegram user ID; the bot answers nobody else |
+| `db_url` | `DB_URL` | Required. `mysql://user:pass@host:3306/db`. Tables are created on first start: `pairs`, `positions` and `scanner_settings` |
+| `wallet_address` | `WALLET_ADDRESS` | Required. The wallet it watches and trades from |
+| `private_key` | `PRIVATE_KEY` | Only to trade. Without it the bot stays watch-only |
+| `alerts_chat_id` | `ALERTS_CHAT_ID` | Where alerts go. Defaults to your private chat. For a group or channel, add the bot to it first (as an admin, for a channel) |
+| `alchemy_api_key`, `ankr_api_key` | `ALCHEMY_API_KEY`, `ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
+| `timezone` | `TIMEZONE` | Default `Europe/London` |
+| | `SENTRY_DSN` (standalone) | Optional error reporting when run on its own |
+| `test_mode` | `TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.
 

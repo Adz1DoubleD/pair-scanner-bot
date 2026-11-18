@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.3.0...v0.3.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* print the database summary from the database setup ([#20](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/20)) ([d5687d4](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/d5687d490c3e1c60571a169f440eb14bf045aa96))
+
 ## [0.3.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.2.1...v0.3.0) (2026-11-18)
 
 

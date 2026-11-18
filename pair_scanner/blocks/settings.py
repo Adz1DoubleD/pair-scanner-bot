@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
@@ -86,6 +88,32 @@ LABELS = {
     "db_cleanup_mb": ("Auto-clean Database At", "MB"),
 }
 
+LIMITS = {
+    "buy_amount_eth": (0.00001, 10),
+    "max_positions": (1, 50),
+    "slippage": (0, 50),
+    "min_eth_balance": (0, 10),
+    "min_liquidity_eth": (0, 1000),
+    "min_ratio_percent": (1, 100),
+    "min_lp_locked_pct": (0, 100),
+    "audit_cooldown": (1, 10080),
+    "auto_audit_max": (1, 100),
+    "max_audits": (1, 100),
+    "strat_min_liq_usd": (0, None),
+    "strat_min_momentum_h1": (0, 100),
+    "take_profit_percent": (1, 1000),
+    "stop_loss_percent": (1, 100),
+    "trailing_stop_percent": (1, 100),
+    "rug_liq_threshold": (1, 100),
+    "dead_token_threshold": (0.1, 10),
+    "dead_token_hours": (1, 168),
+    "pairs_monitor_interval": (1, 10080),
+    "sell_monitor_interval": (1, 10080),
+    "strategy_monitor_interval": (1, 10080),
+    "health_check_interval": (1, 10080),
+    "db_cleanup_mb": (0.5, 1000),
+}
+
 TOGGLES = {
     "trading_enabled",
     "pairs_enabled",
@@ -132,7 +160,7 @@ def group_screen(group, status=None):
                 ]
             )
         else:
-            shown = f"{label}: {value:g} {unit}".rstrip()
+            shown = f"{label}: {Decimal(str(value)).normalize():f} {unit}".rstrip()
             kb.append(
                 [
                     InlineKeyboardButton(
@@ -170,7 +198,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer()
             text = (
                 "⚠️ *Turn trading on?*\n\n"
-                f"The bot will spend up to `{OPTIONS['buy_amount_eth']:g} ETH` per "
+                f"The bot will spend up to `{Decimal(str(OPTIONS['buy_amount_eth'])).normalize():f} ETH` per "
                 f"buy, on up to {OPTIONS['max_positions']} tokens at a time, from "
                 "your wallet. New tokens are extremely risky: most fail and many "
                 "are scams. Only use money you can afford to lose."
@@ -208,8 +236,14 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["state"] = f"scanner:settings:{name}"
         context.user_data["last_msg_id"] = query.message.message_id
         text = (
-            f"✏️ *{label}*\n\nNow: `{OPTIONS[name]:g}` {unit}\n\n"
-            "Send the new value as a number:"
+            f"✏️ *{label}*\n\nNow: `{Decimal(str(OPTIONS[name])).normalize():f}` {unit}\n\n"
+            f"Send the new value as a number ("
+            + (
+                f"{Decimal(str(LIMITS[name][0])).normalize():f}–{Decimal(str(LIMITS[name][1])).normalize():f}"
+                if LIMITS[name][1] is not None
+                else f"{Decimal(str(LIMITS[name][0])).normalize():f} or more"
+            )
+            + "):"
         )
         markup = InlineKeyboardMarkup(
             [
@@ -238,10 +272,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
         value = float(text.replace(",", "").strip())
     except ValueError:
         value = None
-    minimum = 1 if name.endswith("_interval") else 0
-    if value is None or value < minimum:
+    low, high = LIMITS[name]
+    label, unit = LABELS[name]
+    if value is None or value < low or (high is not None and value > high):
         context.user_data["state"] = f"scanner:settings:{name}"
-        reply = f"⚠️ That needs to be a number of at least {minimum}. Send it again:"
+        allowed = (
+            f"between {Decimal(str(low)).normalize():f} and {Decimal(str(high)).normalize():f}"
+            if high is not None
+            else f"{Decimal(str(low)).normalize():f} or more"
+        )
+        unit = unit if unit in ("", "%") else f" {unit}"
+        reply = f"⚠️ {label} must be {allowed}{unit}. Send it again:"
         markup = InlineKeyboardMarkup(
             [
                 [
@@ -256,9 +297,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
         saved = await option_set(name, value)
         if name.endswith("_interval") and jobs.application is not None:
             jobs.apply_interval(jobs.application, name, float(saved))
-        label, unit = LABELS[name]
         reply, markup = group_screen(
-            GROUP_OF[name], status=f"✅ {label} set to `{saved:g}` {unit}".rstrip()
+            GROUP_OF[name],
+            status=f"✅ {label} set to `{Decimal(str(saved)).normalize():f}` {unit}".rstrip(),
         )
 
     try:

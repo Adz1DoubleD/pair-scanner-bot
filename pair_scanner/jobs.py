@@ -7,6 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from .db.options import option_set
+from .db.pairs import clear_archive, db_total_mb
 from .health import scanner_health
 from .helpers import close_kb
 from .monitors import run_pairs_monitor, run_sell_monitor, run_strategy_monitor
@@ -118,8 +119,21 @@ async def send_sells(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_health(context: ContextTypes.DEFAULT_TYPE):
+    cleaned = []
+    try:
+        before = await db_total_mb()
+        limit = float(OPTIONS.get("db_cleanup_mb") or 0)
+        if limit and before >= limit:
+            await clear_archive()
+            after = await db_total_mb()
+            cleaned.append(
+                f"🧹 *Database auto-cleaned* — {before:.2f} → {after:.2f} MB"
+            )
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+
     report = await scanner_health()
-    alerts = list(report["alerts"])
+    alerts = cleaned + list(report["alerts"])
 
     if report["low_eth"]:
         for flag in TRADING_FLAGS:

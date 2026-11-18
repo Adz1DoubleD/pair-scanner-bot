@@ -10,6 +10,7 @@ from ..db.pairs import (
     pairs_mark_completed,
     pairs_reset_db,
 )
+from ..health import scanner_health
 from ..helpers import escape_markdown, format_timestamp
 from ..monitors import run_sell_all, run_strategy_monitor
 from ..w3.tools import fetch_eth_usd_price
@@ -156,6 +157,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
             InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings"),
         ]
     )
+    keyboard.append([InlineKeyboardButton("🩺 Health", callback_data="scanner:health")])
     keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
@@ -186,6 +188,32 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             text="🔄 *Refreshing data...*\n\n" + block["text"],
             reply_markup=block["reply_markup"],
+            parse_mode="Markdown",
+        )
+
+    elif action == "health":
+        report = await scanner_health()
+        alerts = report["alerts"]
+        header = "🚨 *SCANNER HEALTH ALERT*" if alerts else "💚 *SCANNER HEALTH OK*"
+        await query.edit_message_text(
+            f"{header}\n\n"
+            + ("\n".join(f"• {a}" for a in alerts) + "\n\n" if alerts else "")
+            + report["text"],
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🔄 Refresh", callback_data="scanner:health"
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "🔙 Back to Scanner", callback_data="scanner:home"
+                        )
+                    ],
+                    [InlineKeyboardButton("❌ Close", callback_data="cancel")],
+                ]
+            ),
             parse_mode="Markdown",
         )
 

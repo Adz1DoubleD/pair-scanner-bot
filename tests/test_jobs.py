@@ -131,6 +131,56 @@ async def test_low_eth_switches_the_monitors_off_and_alerts(monkeypatch, jq):
     assert "LOW ETH BALANCE" in text and "Scanner & Strategy Disabled" in text
 
 
+@pytest.fixture(autouse=True)
+def small_database(monkeypatch):
+    monkeypatch.setattr(jobs, "db_total_mb", AsyncMock(return_value=1.0))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sizes,cleaned",
+    [([4.5, 1.2], True), ([3.9], False)],
+    ids=["over-the-limit", "under-the-limit"],
+)
+async def test_the_health_job_cleans_the_database_near_its_limit(
+    monkeypatch, sizes, cleaned
+):
+    monkeypatch.setattr(jobs, "db_total_mb", AsyncMock(side_effect=sizes))
+    clear = AsyncMock()
+    monkeypatch.setattr(jobs, "clear_archive", clear)
+    monkeypatch.setattr(
+        jobs, "scanner_health", AsyncMock(return_value={"alerts": [], "low_eth": False})
+    )
+    c = ctx("Scanner Health")
+
+    await jobs.send_health(c)
+
+    assert clear.await_count == int(cleaned)
+    sent = c.bot.send_message.await_args
+    assert (
+        sent is not None
+        and "🧹 *Database auto-cleaned* — 4.50 → 1.20 MB" in sent.kwargs["text"]
+    ) is cleaned
+
+
+@pytest.mark.asyncio
+async def test_a_failed_clean_goes_to_sentry_not_the_alerts(monkeypatch):
+    monkeypatch.setattr(
+        jobs, "db_total_mb", AsyncMock(side_effect=RuntimeError("db down"))
+    )
+    reported = []
+    monkeypatch.setattr(jobs.sentry_sdk, "capture_exception", reported.append)
+    monkeypatch.setattr(
+        jobs, "scanner_health", AsyncMock(return_value={"alerts": [], "low_eth": False})
+    )
+    c = ctx("Scanner Health")
+
+    await jobs.send_health(c)
+
+    c.bot.send_message.assert_not_awaited()
+    assert str(reported[0]) == "db down"
+
+
 @pytest.mark.asyncio
 async def test_healthy_runs_send_nothing(monkeypatch):
     monkeypatch.setattr(

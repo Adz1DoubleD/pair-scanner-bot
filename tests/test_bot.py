@@ -423,3 +423,36 @@ async def test_startup_says_which_bot_it_runs_on(start_env, capsys):
         "🚀 Pair scanner running on the host's bot (watch-only)"
     ]
     await pair_scanner.stop_scanner_bot()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "alerts,header",
+    [
+        ([], "💚 *SCANNER HEALTH OK*"),
+        (["🔥 *Base RPC*: all down"], "🚨 *SCANNER HEALTH ALERT*"),
+    ],
+)
+async def test_the_health_button_shows_the_scanners_own_health(
+    monkeypatch, alerts, header
+):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    monkeypatch.setattr(
+        scanner_screen,
+        "scanner_health",
+        AsyncMock(return_value={"text": "🌐 *Web3*", "alerts": alerts}),
+    )
+    update, context = press("scanner:health")
+
+    await pair_scanner.handle_button(update, context)
+
+    shown = update.callback_query.edit_message_text.await_args
+    assert shown.args[0].startswith(header)
+    assert all(a in shown.args[0] for a in alerts)
+    assert shown.args[0].endswith("🌐 *Web3*")
+    assert callbacks(shown.kwargs["reply_markup"]) == [
+        "scanner:health",
+        "scanner:home",
+        "cancel",
+    ]

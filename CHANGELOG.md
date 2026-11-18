@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.3.1...v0.4.0) (2026-11-18)
+
+
+### Features
+
+* a Health screen, and a health check that only reads ([#24](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/24)) ([dade2e1](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/dade2e17b7396aaa6e5dfc0318e5be9bbde81cbe))
+
+
+### Documentation
+
+* show each setting's keyword next to its environment variable ([#22](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/22)) ([64b83d2](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/64b83d22b073d0c17bd2104ce182c89d43dabe79))
+
 ## [0.3.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.3.0...v0.3.1) (2026-11-18)
 
 

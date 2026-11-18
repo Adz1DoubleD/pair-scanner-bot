@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.4.0...v0.5.0) (2026-11-18)
+
+
+### Features
+
+* check the database in the health check, with an optional dashboard link ([#25](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/25)) ([4b466f3](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/4b466f3df7a7e9f0dedfc049dc086f49b8224ef3))
+
 ## [0.4.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.3.1...v0.4.0) (2026-11-18)
 
 

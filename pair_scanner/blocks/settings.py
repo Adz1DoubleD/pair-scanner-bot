@@ -110,7 +110,7 @@ def settings_menu():
         [InlineKeyboardButton(title, callback_data=f"scanner:settings:g:{g}")]
         for g, (title, _) in GROUPS.items()
     ]
-    kb.append([InlineKeyboardButton("🔙 Back", callback_data="scanner:menu")])
+    kb.append([InlineKeyboardButton("🔙 Scanner", callback_data="scanner:home")])
     return text, InlineKeyboardMarkup(kb)
 
 

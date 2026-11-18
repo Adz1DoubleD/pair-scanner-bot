@@ -260,3 +260,23 @@ def test_the_bot_listens_for_its_buttons_close_and_blank():
         assert re.match(pattern, data)
     for data in ("cancelled", "back:scanner", "troubleshooter:home"):
         assert not re.match(pattern, data)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_links_to_settings_and_back(monkeypatch):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_get_stats",
+        AsyncMock(return_value=({"total": 3, "pulse_total": 3}, None, None, None)),
+    )
+    update, context = press("scanner:home")
+    await pair_scanner.handle_button(update, context)
+    dashboard = update.callback_query.edit_message_text.await_args.kwargs
+    assert "scanner:settings" in callbacks(dashboard["reply_markup"])
+
+    update, context = press("scanner:settings")
+    await pair_scanner.handle_button(update, context)
+    menu = update.callback_query.edit_message_text.await_args.kwargs
+    assert callbacks(menu["reply_markup"])[-1] == "scanner:home"

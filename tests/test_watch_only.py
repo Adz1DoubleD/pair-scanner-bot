@@ -130,3 +130,62 @@ async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
         PAIR["target_address"], PAIR["pair_address"], "TKN", "watched"
     )
     assert result["buys"] == [] and len(result["watched"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_strategy_only_mentions_each_watched_token_once(
+    monkeypatch, watch_only
+):
+    monkeypatch.setattr(monitors, "NETWORKS", {"Base": {"chain_id": 8453}})
+
+    async def by_status(status, table):
+        if (status, table) == ("watched", "pairs"):
+            return [{"target_address": PAIR["target_address"].upper()}]
+        return []
+
+    monkeypatch.setattr(monitors, "pairs_get_by_status", by_status)
+    monkeypatch.setattr(
+        monitors,
+        "fetch_candidates",
+        AsyncMock(
+            return_value=(
+                [
+                    {
+                        "token_addr": PAIR["target_address"],
+                        "pair_addr": PAIR["pair_address"],
+                        "symbol": "TKN",
+                        "liq_usd": 500_000.0,
+                        "change_h1": 9.0,
+                    }
+                ],
+                None,
+            )
+        ),
+    )
+    audit_call = AsyncMock()
+    monkeypatch.setattr(monitors, "get_security_audit", audit_call)
+
+    result = await monitors.run_strategy_monitor(None)
+
+    audit_call.assert_not_awaited()
+    assert result.get("watched", []) == []
+    assert "Nothing to buy" in result["text"]
+
+
+@pytest.mark.asyncio
+async def test_with_trading_on_watched_tokens_can_be_bought(monkeypatch):
+    calls = []
+
+    async def by_status(status, table):
+        calls.append((status, table))
+        return []
+
+    monkeypatch.setattr(monitors, "NETWORKS", {"Base": {"chain_id": 8453}})
+    monkeypatch.setattr(monitors, "pairs_get_by_status", by_status)
+    monkeypatch.setattr(
+        monitors, "fetch_candidates", AsyncMock(return_value=([], None))
+    )
+
+    await monitors.run_strategy_monitor(None)
+
+    assert ("watched", "pairs") not in calls

@@ -4,9 +4,11 @@ from telegram.ext import ContextTypes
 from .. import jobs
 from ..constants import PAIR_STATUS, STATS_PERIODS
 from ..db.pairs import (
+    clear_archive,
     pairs_get_by_id,
     pairs_get_stats,
     pairs_mark_completed,
+    pairs_reset_db,
 )
 from ..helpers import escape_markdown, format_timestamp
 from ..monitors import run_sell_all, run_strategy_monitor
@@ -305,6 +307,42 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
+    elif action == "wipe" and parts[2:3] in (["archive"], ["pairs"]):
+        what = parts[2]
+        await query.edit_message_text(
+            "⚠️ *Clear the archive?*\n\nRemoves rejected pairs and positions "
+            "closed more than 7 days ago."
+            if what == "archive"
+            else "⚠️ *Clear all pairs?*\n\nRemoves every pair and position, "
+            "including open ones. Tokens in the wallet are not sold.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "❌ Cancel", callback_data="scanner:archive"
+                        ),
+                        InlineKeyboardButton(
+                            "✅ Yes, Clear", callback_data=f"scanner:wiped:{what}"
+                        ),
+                    ]
+                ]
+            ),
+        )
+
+    elif action == "wiped" and parts[2:3] in (["archive"], ["pairs"]):
+        if parts[2] == "archive":
+            await clear_archive()
+        else:
+            await pairs_reset_db()
+        block = await _block_archive(context)
+        await query.edit_message_text(
+            text=f"✅ {parts[2].capitalize()} cleared.\n\n" + block["text"],
+            reply_markup=block["reply_markup"],
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+
     elif action == "archive":
         block = await _block_archive(context)
         await query.edit_message_text(
@@ -379,6 +417,14 @@ async def _block_archive(context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(
                 "📤 Export Positions", callback_data="scanner:export:positions"
             ),
+        ]
+    )
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                "🗑️ Clear Archive", callback_data="scanner:wipe:archive"
+            ),
+            InlineKeyboardButton("🎯 Clear Pairs", callback_data="scanner:wipe:pairs"),
         ]
     )
     keyboard.append(

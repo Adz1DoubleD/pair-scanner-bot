@@ -280,3 +280,40 @@ async def test_dashboard_links_to_settings_and_back(monkeypatch):
     await pair_scanner.handle_button(update, context)
     menu = update.callback_query.edit_message_text.await_args.kwargs
     assert callbacks(menu["reply_markup"])[-1] == "scanner:home"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "what,clear_fn", [("archive", "clear_archive"), ("pairs", "pairs_reset_db")]
+)
+async def test_clearing_asks_first_then_clears(monkeypatch, what, clear_fn):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    cleared = AsyncMock()
+    other = AsyncMock()
+    monkeypatch.setattr(scanner_screen, clear_fn, cleared)
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_reset_db" if clear_fn == "clear_archive" else "clear_archive",
+        other,
+    )
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_get_stats",
+        AsyncMock(return_value=({"total": 0}, None, None, None)),
+    )
+
+    update, context = press(f"scanner:wipe:{what}")
+    await pair_scanner.handle_button(update, context)
+    asked = update.callback_query.edit_message_text.await_args
+    assert asked.args[0].startswith("⚠️")
+    assert callbacks(asked.kwargs["reply_markup"]) == [
+        "scanner:archive",
+        f"scanner:wiped:{what}",
+    ]
+    cleared.assert_not_awaited()
+
+    update, context = press(f"scanner:wiped:{what}")
+    await pair_scanner.handle_button(update, context)
+    cleared.assert_awaited_once()
+    other.assert_not_awaited()

@@ -4,7 +4,8 @@
   "packages": {
     ".": {
       "release-type": "python",
-      "package-name": "pair-scanner-bot"
+      "package-name": "pair-scanner-bot",
+      "bump-minor-pre-major": true
     }
   }
 }

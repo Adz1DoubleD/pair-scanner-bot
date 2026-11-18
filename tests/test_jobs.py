@@ -225,3 +225,30 @@ def test_job_status_when_switched_off(jq):
 
     assert jobs.job_status(app, "Pairs Monitor") == ("⏸️ Disabled", "--")
     assert jobs.job_status(None, "Scanner Health") == ("Not Scheduled", "--")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", [None, "https://dash.example/db"])
+async def test_a_database_alert_links_to_the_dashboard_when_set(monkeypatch, url):
+    from pair_scanner.settings import SETTINGS
+
+    monkeypatch.setattr(SETTINGS, "db_dashboard_url", url)
+    monkeypatch.setattr(
+        jobs,
+        "scanner_health",
+        AsyncMock(
+            return_value={
+                "alerts": ["🗄️ *Database*: read-only"],
+                "low_eth": False,
+                "db_problem": True,
+            }
+        ),
+    )
+    c = ctx("Scanner Health")
+
+    await jobs.send_health(c)
+
+    rows = c.bot.send_message.await_args.kwargs["reply_markup"].inline_keyboard
+    urls = [b.url for row in rows for b in row if b.url]
+    assert urls == ([url] if url else [])
+    assert rows[-1][0].callback_data == "cancel"

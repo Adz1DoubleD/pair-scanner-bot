@@ -8,7 +8,19 @@ from pair_scanner.settings import OPTIONS
 
 
 @pytest.fixture
-def chain(monkeypatch):
+def database(monkeypatch, make_cursor, patch_session):
+    def setup(mb=1.0, grants="GRANT ALL PRIVILEGES ON `db`.* TO `u`", error=None):
+        monkeypatch.setattr(
+            health, "db_total_mb", AsyncMock(return_value=mb, side_effect=error)
+        )
+        patch_session(health, make_cursor(fetchall=[[{"Grants": grants}]]))
+
+    setup()
+    return setup
+
+
+@pytest.fixture
+def chain(monkeypatch, database):
     def setup(rpcs=((["A 🟢 5ms"], []),), balances=(0.5,), stats=None):
         monkeypatch.setattr(
             health, "NETWORKS", {f"Net{i}": {} for i in range(len(balances))}
@@ -106,3 +118,43 @@ async def test_checking_health_never_cleans_the_database(monkeypatch, chain):
 
     clear.assert_not_awaited()
     assert "💰 *Wallet*\n └ ETH: 0.5000" in report["text"]
+
+
+@pytest.mark.asyncio
+async def test_watch_only_reports_low_eth_but_switches_nothing_off(chain):
+    OPTIONS.update(trading_enabled=0, pairs_enabled=1)
+    chain(balances=(0.001,))
+
+    report = await health.scanner_health()
+
+    assert report["low_eth"] is False
+    assert any("LOW ETH BALANCE" in a for a in report["alerts"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kwargs,line,alert",
+    [
+        ({}, "🟢 1.00 MB", None),
+        ({"mb": 4.2}, "🟡 4.20 MB", "still over the 4 MB clean-up level"),
+        (
+            {"grants": "GRANT SELECT ON `db`.* TO `u`"},
+            "🔴 Read-only (1.00 MB)",
+            "read-only",
+        ),
+        ({"error": RuntimeError("gone")}, "🔴 Offline", "connection failed"),
+    ],
+    ids=["fine", "still-too-big", "read-only", "offline"],
+)
+async def test_the_database_is_checked(chain, database, kwargs, line, alert):
+    chain()
+    database(**kwargs)
+
+    report = await health.scanner_health()
+
+    assert f"🗄️ *Database*\n └ {line}" in report["text"]
+    assert report["db_problem"] is (alert is not None)
+    if alert:
+        assert any(alert in a for a in report["alerts"])
+    else:
+        assert report["alerts"] == []

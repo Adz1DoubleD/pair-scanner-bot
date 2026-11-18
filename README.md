@@ -22,8 +22,8 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Owner only.** The bot answers only `OWNER_ID`.
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.
-- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default), the health check switches the monitors off and alerts you.
-- **Its own health check.** Every `health_check_interval` minutes it checks the RPCs, the wallet balance and the pairs feed, and only messages you when something's wrong. **🩺 Health** on the dashboard shows the same check whenever you want.
+- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default) while trading is on, the health check switches the monitors off and alerts you. In watch-only it just tells you.
+- **Its own health check.** Every `health_check_interval` minutes it checks the RPCs, the wallet balance, the database (size, read-only, offline) and the pairs feed, and only messages you when something's wrong. When the database nears `db_cleanup_mb` it clears the archive first. **🩺 Health** on the dashboard shows the same check whenever you want.
 - **Watch-only stops new buys, not sells.** Positions it already holds keep their stop-losses.
 
 ## Run it on its own
@@ -52,6 +52,7 @@ Send `/start` to your bot.
 | `timezone` | `TIMEZONE` | Default `Europe/London` |
 | | `SENTRY_DSN` (standalone) | Optional error reporting when run on its own |
 | `test_mode` | `TEST_MODE` | `1` to try the screens safely: no background jobs, no alerts and no trades, even with a private key |
+| `db_dashboard_url` | `DB_DASHBOARD_URL` | Optional web page for your database, such as its Heroku resources page. Database health alerts get a **🔧 Open database dashboard** button. Never put `DB_URL` here: it holds the password |
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.
 

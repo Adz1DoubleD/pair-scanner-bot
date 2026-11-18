@@ -150,7 +150,21 @@ async def send_health(context: ContextTypes.DEFAULT_TYPE):
             chat_id=SETTINGS.alerts_chat_id,
             text="🚨 *SCANNER HEALTH ALERT*\n\n" + "\n".join(f"• {a}" for a in alerts),
             parse_mode="Markdown",
-            reply_markup=close_kb(),
+            reply_markup=InlineKeyboardMarkup(
+                (
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "🔧 Open database dashboard",
+                                url=SETTINGS.db_dashboard_url,
+                            )
+                        ]
+                    ]
+                    if report.get("db_problem") and SETTINGS.db_dashboard_url
+                    else []
+                )
+                + list(close_kb().inline_keyboard)
+            ),
         )
 
 

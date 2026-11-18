@@ -21,6 +21,7 @@ ENV_VARS = {
     "ankr_api_key": "ANKR_API_KEY",
     "timezone": "TIMEZONE",
     "test_mode": "TEST_MODE",
+    "db_dashboard_url": "DB_DASHBOARD_URL",
 }
 
 
@@ -42,6 +43,7 @@ SETTINGS = Settings(
     timezone="Europe/London",
     test_mode=False,
     env_prefix="",
+    db_dashboard_url=None,
     import_settings_from=None,
     import_from_db_url=None,
 )

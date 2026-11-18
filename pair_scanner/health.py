@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import sentry_sdk
 
-from .db.pairs import pairs_get_stats
+from .db.core import db_session
+from .db.pairs import db_total_mb, pairs_get_stats
 from .networks import NETWORKS
 from .settings import OPTIONS, SETTINGS
 from .w3 import get_w3_service
@@ -17,6 +18,29 @@ async def scanner_health():
     strategy_on = int(OPTIONS.get("strategy_enabled", 0) or 0) == 1
     trading_on = int(OPTIONS.get("trading_enabled", 0) or 0) == 1
     alerts = []
+
+    db_problem = True
+    try:
+        mb = await db_total_mb()
+        async with db_session() as cur:
+            await cur.execute("SHOW GRANTS FOR CURRENT_USER()")
+            grants = " ".join(str(r) for r in await cur.fetchall())
+        limit = float(OPTIONS.get("db_cleanup_mb") or 0)
+        if "INSERT" not in grants and "ALL PRIVILEGES" not in grants:
+            db_line = f"🔴 Read-only ({mb:.2f} MB)"
+            alerts.append("🗄️ *Database*: read-only, nothing can be saved")
+        elif limit and mb >= limit:
+            db_line = f"🟡 {mb:.2f} MB"
+            alerts.append(
+                f"🗄️ *Database*: `{mb:.2f} MB`, still over the {limit:g} MB clean-up level"
+            )
+        else:
+            db_line = f"🟢 {mb:.2f} MB"
+            db_problem = False
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        db_line = "🔴 Offline"
+        alerts.append("🔥 *Database*: connection failed")
 
     networks = sorted(NETWORKS.items())
     rpc_checks = await asyncio.gather(
@@ -102,6 +126,7 @@ async def scanner_health():
     sections = (
         ("🌐 *Web3*", rpc_lines),
         ("💰 *Wallet*", wallet),
+        ("🗄️ *Database*", [db_line]),
         ("🛰️ *Token Monitors*", monitors),
     )
     text = "\n\n".join(
@@ -116,6 +141,7 @@ async def scanner_health():
     return {
         "text": text,
         "alerts": alerts,
-        "low_eth": eth_low and (pairs_on or strategy_on),
+        "low_eth": eth_low and trading_on and (pairs_on or strategy_on),
         "eth": None if failed else total_eth,
+        "db_problem": db_problem,
     }

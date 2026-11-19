@@ -25,7 +25,8 @@ GROUPS = {
             "pairs_mode",
             "strategy_mode",
             "buy_alerts_enabled",
-            "sell_alerts_enabled",
+            "profit_alerts_enabled",
+            "loss_alerts_enabled",
         ],
     ),
     "trading": (
@@ -73,8 +74,9 @@ GROUPS = {
 LABELS = {
     "pairs_mode": ("🤖 Pairs Monitor", ""),
     "strategy_mode": ("🧭 Strategy Monitor", ""),
-    "buy_alerts_enabled": ("🔔 Buy Alerts", ""),
-    "sell_alerts_enabled": ("🔔 Sell Alerts", ""),
+    "buy_alerts_enabled": ("🛒 Buy Alerts", ""),
+    "profit_alerts_enabled": ("💰 Profit Sell Alerts", ""),
+    "loss_alerts_enabled": ("🚨 Loss Sell Alerts", ""),
     "buy_amount_eth": ("Buy Amount", "ETH"),
     "max_positions": ("Max Positions", ""),
     "slippage": ("Slippage", "%"),
@@ -134,7 +136,8 @@ LIMITS = {
 
 TOGGLES = {
     "buy_alerts_enabled",
-    "sell_alerts_enabled",
+    "profit_alerts_enabled",
+    "loss_alerts_enabled",
 }
 GROUP_OF = {name: g for g, (_, names) in GROUPS.items() for name in names}
 TO_SETTINGS = InlineKeyboardButton("🔙 Settings", callback_data="scanner:settings")

@@ -465,12 +465,17 @@ def make_position(**over):
 async def run_monitor(m, pos, price=1.0, liq=10.0):
     m.positions.return_value = [pos]
     m.metrics.return_value = {"price_eth": price, "liq_eth": liq}
-    return (await auto.run_sell_monitor(make_ctx()))["sells"]
+    result = await auto.run_sell_monitor(make_ctx())
+    return result["sells"] + result["losses"]
 
 
 @pytest.mark.asyncio
 async def test_monitor_no_positions_does_nothing(mon):
-    assert await auto.run_sell_monitor(make_ctx()) == {"sells": [], "charts": []}
+    assert await auto.run_sell_monitor(make_ctx()) == {
+        "sells": [],
+        "losses": [],
+        "charts": [],
+    }
 
     mon.positions.assert_awaited_once_with(status="monitoring", table="positions")
     mon.metrics.assert_not_awaited()
@@ -929,12 +934,10 @@ async def test_monitor_reports_several_closes_in_one_run(mon):
         {"price_eth": 0.8, "liq_eth": 10.0},
     ]
 
-    closed = (await auto.run_sell_monitor(make_ctx()))["sells"]
+    result = await auto.run_sell_monitor(make_ctx())
 
-    assert closed == [
-        "$AAA · take-profit · +50.00%",
-        "$BBB · stop-loss · -20.00%",
-    ]
+    assert result["sells"] == ["$AAA · take-profit · +50.00%"]
+    assert result["losses"] == ["$BBB · stop-loss · -20.00%"]
 
 
 @pytest.mark.asyncio

@@ -59,12 +59,13 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
     active_positions = await pairs_get_by_status(status="monitoring", table="positions")
     s = OPTIONS
     sells = []
+    losses = []
     charts = []
     held = len([p for p in active_positions or [] if isinstance(p, dict)])
     max_positions = int(s.get("max_positions", 5))
 
     if not active_positions:
-        return {"sells": sells, "charts": charts}
+        return {"sells": sells, "losses": losses, "charts": charts}
 
     for pos in active_positions:
         if not isinstance(pos, dict):
@@ -165,7 +166,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         token_addr, sell_tx=tx_hash, **(result or {})
                     )
                     real_pnl = result["pnl"] if result else pnl
-                    sells.append(
+                    (losses if real_pnl < 0 else sells).append(
                         f"☠️ ${symbol} · honeypot flagged, sold · {real_pnl:+.2f}%"
                     )
                 elif error == "No token balance":
@@ -173,7 +174,9 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     sells.append(f"📝 ${symbol} · no tokens left, closed · {pnl:+.2f}%")
                 else:
                     await pairs_mark_completed(token_addr, pnl=written_off)
-                    sells.append(f"☠️ ${symbol} · honeypot detected · {written_off:+g}%")
+                    losses.append(
+                        f"☠️ ${symbol} · honeypot detected · {written_off:+g}%"
+                    )
                 continue
 
             is_dead = (
@@ -255,7 +258,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     )
                     await pairs_mark_completed(token_addr, pnl=written_off)
                     held -= 1
-                    sells.append(f"💀 ${symbol} · unsellable · {written_off:+g}%")
+                    losses.append(f"💀 ${symbol} · unsellable · {written_off:+g}%")
                     continue
 
                 if error == "No token balance":
@@ -298,7 +301,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         if pos.get("pair_address")
                         else None
                     )
-                    sells.append(
+                    (losses if real_pnl < 0 else sells).append(
                         f"${symbol} · {reason} · {real_pnl:+.2f}%"
                         + (f" · {dex}" if dex else "")
                     )
@@ -316,7 +319,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         )
                         await pairs_mark_completed(token_addr, pnl=written_off)
                         held -= 1
-                        sells.append(
+                        losses.append(
                             f"🚨 ${symbol} · rug, sell failed · {written_off:+g}%"
                         )
                         continue
@@ -330,7 +333,12 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             sentry_sdk.capture_exception(e)
 
-    return {"sells": sells, "charts": charts, "positions": (held, max_positions)}
+    return {
+        "sells": sells,
+        "losses": losses,
+        "charts": charts,
+        "positions": (held, max_positions),
+    }
 
 
 async def run_sell_all(context: ContextTypes.DEFAULT_TYPE):

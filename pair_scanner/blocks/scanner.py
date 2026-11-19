@@ -13,7 +13,7 @@ from ..db.pairs import (
 from ..health import scanner_health
 from ..helpers import escape_markdown, format_timestamp
 from ..monitors import run_sell_all, run_strategy_monitor
-from ..settings import MODE_NAMES, SETTINGS, current_mode
+from ..settings import MODE_NAMES, MODE_OFF, SETTINGS, current_mode
 from ..w3.tools import fetch_eth_usd_price
 from . import pairs, positions
 
@@ -62,35 +62,39 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         if brief
         else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
     )
-    stat_text = (
-        f"*{title}*\n"
-        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]} · "
-        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}\n\n"
-        f" ├ Found: {stats.get('pulse_total', 0)}\n"
-        f" ├ Rejected: {stats.get('pulse_rejected', 0)}\n"
-        f" ├ Bought: {stats.get('pulse_passed', 0)}\n"
-    )
-
-    closed = int(stats.get("pulse_closed", 0) or 0)
-    if closed:
-        avg_pnl = float(stats.get("pulse_avg_pnl") or 0)
-        wins = int(stats.get("pulse_wins", 0) or 0)
-        win_rate = wins / closed * 100
-        eth_pnl = float(stats.get("pulse_eth_pnl") or 0)
-        eth_counted = int(stats.get("pulse_eth_counted") or 0)
-        eth_line = ""
-        if eth_counted:
-            usd = eth_pnl * await fetch_eth_usd_price()
-            usd_str = f" ({'-' if usd < 0 else '+'}${abs(usd):.2f})" if usd else ""
-            eth_line = f" ├ P&L: `{eth_pnl:+.6f} ETH`{usd_str}\n"
+    stat_text = f"*{title}*\n\n"
+    eth_pnl, eth_counted = 0.0, 0
+    for monitor, heading in (("pairs", "🤖 *Pairs*"), ("strategy", "🧭 *Strategy*")):
+        m = stats["monitors"][monitor]
+        mode = current_mode(monitor)
+        if mode == MODE_OFF and not (m["found"] or m["bought"] or m["closed"]):
+            continue
+        lines = [f"Found: {m['found']}", f"Rejected: {m['rejected']}"]
+        if m["watched"]:
+            lines.append(f"Would buy: {m['watched']}")
+        lines += [f"Bought: {m['bought']}", f"Sold: {m['closed']}"]
+        if m["closed"]:
+            lines += [
+                f"Avg Return: `{m['avg_pnl']:+.2f}%`",
+                f"Win Rate: `{m['wins'] / m['closed'] * 100:.0f}%` "
+                f"({m['wins']}/{m['closed']})",
+            ]
+        eth_pnl += m["eth_pnl"]
+        eth_counted += m["eth_counted"]
         stat_text += (
-            f" ├ Sold: {closed}\n"
-            f"{eth_line}"
-            f" ├ Avg Return: `{avg_pnl:+.2f}%`\n"
-            f" └ Win Rate: `{win_rate:.0f}%` ({wins}/{closed})\n\n"
+            f"{heading} · {MODE_NAMES[mode]}\n"
+            + "\n".join(
+                f" {'└' if i == len(lines) - 1 else '├'} {line}"
+                for i, line in enumerate(lines)
+            )
+            + "\n\n"
         )
-    else:
-        stat_text += " └ Sold: 0\n\n"
+    if eth_counted:
+        usd = eth_pnl * await fetch_eth_usd_price()
+        usd_str = f" ({'-' if usd < 0 else '+'}${abs(usd):.2f})" if usd else ""
+        stat_text += f"💰 *P&L*: `{eth_pnl:+.6f} ETH`{usd_str}\n\n"
+    if stat_text == f"*{title}*\n\n":
+        stat_text += f"Both monitors are {MODE_NAMES[MODE_OFF]}.\n\n"
 
     if brief:
         return {"text": stat_text}

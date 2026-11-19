@@ -1170,5 +1170,22 @@ async def test_a_rug_after_half_keeps_what_the_half_brought_back(halves):
 
     sells = await run_monitor(halves, pos, price=1.0, liq=1.0)
 
-    halves.completed.assert_awaited_once_with("0xtoken", pnl=-35.0)
+    halves.trade.assert_awaited_once_with(
+        BASE_CONF, "0xbuy", earlier_eth=Decimal("0.0000065")
+    )
+    halves.completed.assert_awaited_once_with(
+        "0xtoken", eth_spent=0.00001, eth_received=0.0000065, pnl=-35.0
+    )
     assert sells == ["🚨 $TKN · rug, sell failed · -35%"]
+
+
+@pytest.mark.asyncio
+async def test_a_trade_that_cannot_be_sold_still_counts_what_it_cost(mon, monkeypatch):
+    cost = {"eth_spent": 0.00001, "eth_received": 0, "pnl": -100.0}
+    monkeypatch.setattr(auto, "trade_result", AsyncMock(return_value=cost))
+    mon.sell.return_value = (None, "execution reverted")
+
+    sells = await run_monitor(mon, make_position(), price=1.0, liq=1.0)
+
+    mon.completed.assert_awaited_once_with("0xtoken", **cost)
+    assert sells == ["🚨 $TKN · rug, sell failed · -100%"]

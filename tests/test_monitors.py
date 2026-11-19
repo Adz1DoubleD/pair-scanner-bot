@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -34,7 +34,9 @@ def strat(monkeypatch):
         honeypot=AsyncMock(return_value=True),
         simulate=AsyncMock(return_value=True),
         buy=AsyncMock(return_value=("0xbuytx", None)),
-        metrics=AsyncMock(return_value={"price_eth": 1.0}),
+        metrics=AsyncMock(
+            return_value={"price_eth": 1.0, "liq_eth": 1000.0, "success": True}
+        ),
         position_add=AsyncMock(),
         strat_add=AsyncMock(),
         capture=MagicMock(),
@@ -46,6 +48,7 @@ def strat(monkeypatch):
     monkeypatch.setattr(auto, "simulate_sell", m.simulate)
     monkeypatch.setattr(auto, "execute_buy", m.buy)
     monkeypatch.setattr(auto, "get_token_metrics", m.metrics)
+    monkeypatch.setattr(auto, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
     monkeypatch.setattr(auto, "pairs_position_add", m.position_add)
     monkeypatch.setattr(auto, "pairs_strat_add", m.strat_add)
     monkeypatch.setattr(auto, "dex_name", AsyncMock(return_value=None))
@@ -55,13 +58,14 @@ def strat(monkeypatch):
     return m
 
 
-def cand(symbol, liq=500_000, h1=10.0):
+def cand(symbol, liq=500_000, h1=10.0, created_at="2024-01-01T00:00:00Z"):
     return {
         "symbol": symbol,
         "token_addr": f"0x{symbol.lower()}",
         "pair_addr": f"0xpair-{symbol.lower()}",
         "liq_usd": liq,
         "change_h1": h1,
+        "created_at": created_at,
     }
 
 
@@ -240,9 +244,9 @@ async def test_strategy_records_successful_buy(strat):
         "network": "Base",
         "buy_tx": "0xbuytx",
     }
-    strat.metrics.assert_awaited_once_with(entry, strat.conf)
+    assert strat.metrics.await_args.args == (entry, strat.conf)
     strat.position_add.assert_awaited_once_with(
-        entry, {"price_eth": 1.0}, "clear", True, strat.gp
+        entry, strat.metrics.return_value, "clear", True, strat.gp
     )
     strat.strat_add.assert_awaited_once_with("0xa", "0xpair-a", "A", "monitoring")
 
@@ -1189,3 +1193,61 @@ async def test_a_trade_that_cannot_be_sold_still_counts_what_it_cost(mon, monkey
 
     mon.completed.assert_awaited_once_with("0xtoken", **cost)
     assert sells == ["🚨 $TKN · rug, sell failed · -100%"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "created_at,min_age,bought",
+    [
+        ("2024-01-01T00:00:00Z", 24, True),
+        (None, 24, False),
+        ("young", 24, False),
+        ("young", 0, True),
+    ],
+    ids=["old-pool", "unknown-age", "young-pool", "age-check-off"],
+)
+async def test_strategy_skips_pools_younger_than_the_minimum_age(
+    strat, created_at, min_age, bought
+):
+    if created_at == "young":
+        created_at = (datetime.now(timezone.utc) - timedelta(minutes=35)).isoformat()
+    strat.settings["strat_min_pool_age_hours"] = min_age
+    strat.candidates.return_value = ([cand("A", created_at=created_at)], None)
+
+    await auto.run_strategy_monitor(make_ctx())
+
+    assert strat.buy.await_count == int(bought)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "pool,status,text",
+    [
+        ({"success": False}, "metrics-rejected", "pool can't be read"),
+        ({"success": True, "liq_eth": 0.0026}, "low-liquidity", "$16 in the pool"),
+    ],
+)
+async def test_strategy_checks_the_pool_on_chain_before_buying(
+    strat, pool, status, text
+):
+    strat.metrics.return_value = pool
+    strat.candidates.return_value = ([cand("A")], None)
+
+    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+
+    strat.buy.assert_not_awaited()
+    strat.strat_add.assert_awaited_once_with("0xa", "0xpair-a", "A", status)
+    assert text in summary
+
+
+@pytest.mark.asyncio
+async def test_strategy_records_each_run_for_the_health_check(strat):
+    strat.candidates.return_value = (
+        [cand("A"), cand("B")],
+        "fetch failed (status 429)",
+    )
+
+    await auto.run_strategy_monitor(make_ctx())
+
+    assert auto.STRATEGY_RUN["fetched"] == 2
+    assert auto.STRATEGY_RUN["error"] == "fetch failed (status 429)"

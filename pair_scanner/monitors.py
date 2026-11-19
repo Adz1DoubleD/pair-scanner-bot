@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import sentry_sdk
 from telegram.ext import ContextTypes
@@ -28,11 +28,13 @@ from .w3.audit import (
 )
 from .w3.tools import (
     dex_name,
+    fetch_eth_usd_price,
     trade_result,
 )
 from .w3.trade import execute_buy, execute_sell, simulate_sell
 
 _NO_ENTRY_WARNED = set()
+STRATEGY_RUN = {}
 
 
 async def run_pairs_monitor(context: ContextTypes.DEFAULT_TYPE):
@@ -416,6 +418,9 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
         }
 
     candidates, fetch_error = await fetch_candidates()
+    now = datetime.now(timezone.utc)
+    STRATEGY_RUN.update(at=now, fetched=len(candidates), error=fetch_error)
+    min_age = timedelta(hours=float(s.get("strat_min_pool_age_hours", 24) or 0))
 
     picks = sorted(
         (
@@ -424,6 +429,13 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
             if c["liq_usd"] >= min_liq_usd
             and c["change_h1"] >= min_momentum
             and c["token_addr"].lower() not in traded_addrs
+            and (
+                not min_age
+                or (
+                    c.get("created_at")
+                    and now - datetime.fromisoformat(c["created_at"]) >= min_age
+                )
+            )
         ),
         key=lambda c: c["change_h1"],
         reverse=True,
@@ -449,6 +461,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
     if not picks:
         return {"text": "\n".join(scan + ["", "🚫 Nothing to buy"]), "charts": []}
 
+    eth_usd = await fetch_eth_usd_price()
     passed = 0
     bought = 0
     results = []
@@ -462,6 +475,10 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
         token_addr = c["token_addr"]
         symbol = escape_markdown(c["symbol"])
         try:
+            pool = await get_token_metrics(
+                {"pair_address": c["pair_addr"], "target_address": token_addr}, conf
+            )
+            onchain_usd = float(pool.get("liq_eth") or 0) * 2 * eth_usd
             sec_status, is_renounced, gp_data = await get_security_audit(
                 token_addr, conf["chain_id"]
             )
@@ -469,7 +486,11 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
             sellable = await simulate_sell(conf, token_addr, c["pair_addr"])
             tax_pct = float((gp_data or {}).get("sell_tax") or 0) * 100
 
-            if sellable is not True:
+            if not pool.get("success"):
+                status, detail = "metrics-rejected", "pool can't be read"
+            elif onchain_usd < min_liq_usd:
+                status, detail = "low-liquidity", f"${onchain_usd:,.0f} in the pool"
+            elif sellable is not True:
                 status, detail = "honey-pot", "can't sell"
             elif is_safe is not True:
                 status, detail = "honey-pot", "honeypot.is"

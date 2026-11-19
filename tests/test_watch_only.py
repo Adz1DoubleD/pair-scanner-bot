@@ -105,6 +105,7 @@ async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
                         "symbol": "TKN",
                         "liq_usd": 500_000.0,
                         "change_h1": 9.0,
+                        "created_at": "2024-01-01T00:00:00Z",
                     }
                 ],
                 None,
@@ -118,6 +119,12 @@ async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
     )
     monkeypatch.setattr(monitors, "check_honeypot", AsyncMock(return_value=True))
     monkeypatch.setattr(monitors, "simulate_sell", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        monitors,
+        "get_token_metrics",
+        AsyncMock(return_value={"liq_eth": 1000.0, "success": True}),
+    )
+    monkeypatch.setattr(monitors, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
     added = AsyncMock()
     monkeypatch.setattr(monitors, "pairs_strat_add", added)
     buy = AsyncMock()
@@ -156,6 +163,7 @@ async def test_the_strategy_only_mentions_each_watched_token_once(
                         "symbol": "TKN",
                         "liq_usd": 500_000.0,
                         "change_h1": 9.0,
+                        "created_at": "2024-01-01T00:00:00Z",
                     }
                 ],
                 None,

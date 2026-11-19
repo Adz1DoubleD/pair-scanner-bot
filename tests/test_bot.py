@@ -560,3 +560,30 @@ async def test_startup_says_which_bot_and_mode(start_env, capsys):
         "🚀 Pair scanner running on the host's bot (Pairs ⏸️ Off, Strategy 👀 Watch)"
     ]
     await pair_scanner.stop_scanner_bot()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    OPTIONS.update(pairs_mode=2, strategy_mode=1)
+    one = {**STATS["monitors"]["pairs"], "bought": 2, "closed": 2, "avg_pnl": 10.0}
+    two = {**STATS["monitors"]["pairs"], "bought": 2, "closed": 1, "avg_pnl": -20.0}
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_get_stats",
+        AsyncMock(
+            return_value=(
+                {"total": 3, "monitors": {"pairs": one, "strategy": two}},
+                None,
+                None,
+                None,
+            )
+        ),
+    )
+
+    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+
+    total = text.split("📊 *Total*")[1]
+    assert "Bought: 4" in total and "Sold: 3" in total
+    assert "Avg Return: `+0.00%`" in total

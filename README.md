@@ -90,8 +90,6 @@ Inside a host, the bot token is optional. Without it, the scanner uses the host'
 - `balances_block(brief=False)` shows the wallet's balance on each network.
 - `scanner_health()` returns the RPC, wallet and monitor status as text, plus its alerts, so a host can show them in its own health check if it wants. It only reads: it never changes settings or cleans the database.
 
-A host that already ran a scanner can hand over its data on the first start. Pass `import_settings_from="settings"`, the name of the host's single-row settings table, and, if the scanner has its own database, `import_from_db_url` with the host's database URL. The scanner then copies, once and in one transaction, the matching settings into `scanner_settings`, and the host's `pairs` and `positions` rows with their original IDs, into its own tables if they're empty. It starts with trading on, since the host was already trading. It only reads from the host's database; the old tables stay there until the host removes them.
-
 ## Development
 
 ```bash

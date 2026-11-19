@@ -7,7 +7,6 @@ SECRETS = (
     "alchemy_api_key",
     "ankr_api_key",
     "db_url",
-    "import_from_db_url",
 )
 
 ENV_VARS = {
@@ -44,8 +43,6 @@ SETTINGS = Settings(
     test_mode=False,
     env_prefix="",
     db_dashboard_url=None,
-    import_settings_from=None,
-    import_from_db_url=None,
 )
 
 OPTION_DEFAULTS = {

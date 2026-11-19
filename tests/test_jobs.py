@@ -86,7 +86,8 @@ async def test_sell_alert(monkeypatch):
         "run_sell_monitor",
         AsyncMock(
             return_value={
-                "sells": ["$A · take-profit · +60.00%", "$B · stop-loss · -21.00%"],
+                "sells": ["$A · take-profit · +60.00%"],
+                "losses": ["$B · stop-loss · -21.00%"],
                 "charts": [],
                 "positions": (1, 3),
             }
@@ -97,9 +98,74 @@ async def test_sell_alert(monkeypatch):
     await jobs.send_sells(c)
 
     assert c.bot.send_message.await_args.kwargs["text"] == (
-        "💰 *Sell*\n ├ $A · take-profit · +60.00%\n └ $B · stop-loss · -21.00%"
+        "💰 *Sell*\n └ $A · take-profit · +60.00%\n\n"
+        "🚨 *Lost*\n └ $B · stop-loss · -21.00%"
         "\n\n💼 Positions: 1/3"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "profit,loss,expected",
+    [
+        (0, 1, "🚨 *Lost*\n └ $B · rug · -40.00%"),
+        (1, 0, "💰 *Sell*\n └ $A · sold half · +31.00%"),
+        (0, 0, None),
+    ],
+)
+async def test_profit_and_loss_alerts_switch_off_separately(
+    monkeypatch, profit, loss, expected
+):
+    OPTIONS.update(profit_alerts_enabled=profit, loss_alerts_enabled=loss)
+    monkeypatch.setattr(
+        jobs,
+        "run_sell_monitor",
+        AsyncMock(
+            return_value={
+                "sells": ["$A · sold half · +31.00%"],
+                "losses": ["$B · rug · -40.00%"],
+                "charts": [],
+            }
+        ),
+    )
+    c = ctx("Sell Monitor")
+
+    await jobs.send_sells(c)
+
+    if expected is None:
+        c.bot.send_message.assert_not_awaited()
+    else:
+        assert c.bot.send_message.await_args.kwargs["text"] == expected
+
+
+@pytest.mark.asyncio
+async def test_with_buy_alerts_off_would_buys_and_failures_still_arrive(monkeypatch):
+    OPTIONS["buy_alerts_enabled"] = 0
+    monkeypatch.setattr(
+        jobs,
+        "run_pairs_monitor",
+        AsyncMock(
+            return_value={
+                "buys": ["$AAA"],
+                "watched": ["$BBB"],
+                "failed": ["❌ CCC — reverted"],
+                "charts": [("AAA", "0xpair")],
+                "positions": (2, 3),
+            }
+        ),
+    )
+    c = ctx("Pairs Monitor")
+
+    await jobs.send_buys(c)
+
+    sent = c.bot.send_message.await_args.kwargs
+    assert sent["text"] == (
+        "👀 *Pairs: would buy* (watch-only)\n └ $BBB\n\n"
+        "⚠️ *Pairs Buy Failed*\n └ ❌ CCC — reverted"
+    )
+    assert [
+        b.callback_data for row in sent["reply_markup"].inline_keyboard for b in row
+    ] == ["cancel"]
 
 
 @pytest.mark.asyncio

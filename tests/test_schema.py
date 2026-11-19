@@ -171,3 +171,25 @@ async def test_older_positions_tables_get_the_half_sale_column(
 
     alters = [c[0] for c in cur.calls if c[0].startswith("ALTER TABLE positions")]
     assert bool(alters) is altered
+
+
+@pytest.mark.asyncio
+async def test_the_old_sell_alerts_switch_sets_both_new_ones(
+    make_cursor, patch_session
+):
+    cur = patch_session(
+        db.schema,
+        fake_db(
+            make_cursor,
+            tables={"pairs", "positions", "scanner_settings"},
+            stored=[{"name": "sell_alerts_enabled", "value": "0"}],
+        ),
+    )
+
+    await db.init_scanner_db()
+
+    assert OPTIONS["profit_alerts_enabled"] == 0
+    assert OPTIONS["loss_alerts_enabled"] == 0
+    assert "DELETE FROM scanner_settings WHERE name = 'sell_alerts_enabled'" in [
+        c[0] for c in cur.calls
+    ]

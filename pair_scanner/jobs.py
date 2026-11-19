@@ -43,7 +43,10 @@ async def send_buys(context: ContextTypes.DEFAULT_TYPE):
     result = result or {}
     buys, failed = result.get("buys", []), result.get("failed", [])
     watched = result.get("watched", [])
-    if not (buys or failed or watched) or not int(OPTIONS.get("buy_alerts_enabled", 1)):
+    if not int(OPTIONS.get("buy_alerts_enabled", 1)):
+        buys = []
+        result["charts"] = []
+    if not (buys or failed or watched):
         return
 
     sections = []
@@ -97,12 +100,24 @@ async def send_buys(context: ContextTypes.DEFAULT_TYPE):
 
 async def send_sells(context: ContextTypes.DEFAULT_TYPE):
     result = await run_sell_monitor(context) or {}
-    sells = result.get("sells", [])
-    if not sells or not int(OPTIONS.get("sell_alerts_enabled", 1)):
+    sells = (
+        result.get("sells", []) if int(OPTIONS.get("profit_alerts_enabled", 1)) else []
+    )
+    losses = (
+        result.get("losses", []) if int(OPTIONS.get("loss_alerts_enabled", 1)) else []
+    )
+    if not (sells or losses):
         return
 
-    text = "💰 *Sell*\n" + "\n".join(
-        f" {'└' if i == len(sells) - 1 else '├'} {line}" for i, line in enumerate(sells)
+    text = "\n\n".join(
+        title
+        + "\n"
+        + "\n".join(
+            f" {'└' if i == len(lines) - 1 else '├'} {line}"
+            for i, line in enumerate(lines)
+        )
+        for title, lines in (("💰 *Sell*", sells), ("🚨 *Lost*", losses))
+        if lines
     )
     if result.get("positions"):
         held, max_positions = result["positions"]

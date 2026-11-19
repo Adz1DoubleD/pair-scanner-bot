@@ -113,6 +113,18 @@ async def init_scanner_db():
                 "('mode', 'trading_enabled', 'pairs_enabled', 'strategy_enabled')"
             )
 
+        if "sell_alerts_enabled" in saved:
+            for name in ("profit_alerts_enabled", "loss_alerts_enabled"):
+                if name not in saved:
+                    await cur.execute(
+                        "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
+                        (name, saved["sell_alerts_enabled"]),
+                    )
+                    rows.append({"name": name, "value": saved["sell_alerts_enabled"]})
+            await cur.execute(
+                "DELETE FROM scanner_settings WHERE name = 'sell_alerts_enabled'"
+            )
+
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)
     for row in rows:

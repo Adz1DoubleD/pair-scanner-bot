@@ -58,6 +58,7 @@ async def audit_pair(
             min_liq = int(min_liq_eth * 10**18)
             min_ratio = float(OPTIONS.get("min_ratio_percent", 15.0))
             min_lp_locked = float(OPTIONS.get("min_lp_locked_pct", 70))
+            max_holder = float(OPTIONS.get("max_top_holder_pct", 10))
 
             w3 = await open_w3(conf)
             pair = Web3.to_checksum_address(entry["pair_address"])
@@ -93,6 +94,9 @@ async def audit_pair(
                 reasons.append("low-ratio")
             if gp_data and not is_v3 and lp_locked_pct < min_lp_locked:
                 reasons.append("lp-unlocked")
+            top_holder = gp_data.get("top_holder_pct", 0) if gp_data else 0
+            if top_holder > max_holder:
+                reasons.append("whale")
 
             if preview:
                 verdict = "✅ WOULD PASS" if not reasons else "❌ WOULD REJECT"
@@ -116,7 +120,8 @@ async def audit_pair(
                         if is_v3
                         else f"🔒 LP Locked: `{lp_locked_pct:.0f}%` (min {min_lp_locked:.0f}%)\n"
                     )
-                    + f"🔐 Renounced: {'✅' if is_renounced else '❌'}\n"
+                    + f"🐋 Top Holder: `{top_holder:.0f}%` (max {max_holder:.0f}%)\n"
+                    f"🔐 Renounced: {'✅' if is_renounced else '❌'}\n"
                     f"🛡️ Security: `{sec_status if gp_data else 'no-data'}`\n"
                     f"💸 Tax: Buy `{buy_str}` / Sell `{sell_str}`\n"
                     f"🍯 Honeypot-safe: {'✅' if is_safe is True else '❌'}  |  "
@@ -332,7 +337,11 @@ async def get_security_audit(address: str, chain_id: int):
 
             top_holder_pct = 0.0
             for h in data.get("holders") or []:
-                if str(h.get("is_locked")) == "1":
+                if (
+                    str(h.get("is_locked")) == "1"
+                    or str(h.get("is_contract")) == "1"
+                    or (h.get("address") or "").lower() in dead
+                ):
                     continue
                 if (h.get("tag") or "") == "":
                     top_holder_pct = max(

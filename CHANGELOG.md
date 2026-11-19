@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.3.0...v1.4.0) (2026-11-19)
+
+
+### Features
+
+* document and type the public functions, and add scanner_modes() ([#53](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/53)) ([d7f9cce](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/d7f9cced4b9ecca0590c5de93c401601bc09af6a))
+* sell rules use what a sale would really return, and Watch picks are followed ([#51](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/51)) ([7f097d6](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/7f097d6c95a7bfae8a02f8d1693f6955a1381966))
+* the dashboard is the scanner's home screen ([#56](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/56)) ([7111a12](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/7111a12740d732bbd06481de418f16ded6cd0ee7))
+
+
+### Documentation
+
+* describe real sale quotes, followed Watch picks and the Strategy checks ([#57](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/57)) ([cc51d3a](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/cc51d3a44aa463a18084b0012475dfdf81f6a2b3))
+
 ## [1.3.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.2.0...v1.3.0) (2026-11-19)
 
 

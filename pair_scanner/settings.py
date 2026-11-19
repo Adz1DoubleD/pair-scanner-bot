@@ -50,10 +50,11 @@ SETTINGS = Settings(
 MODE_OFF, MODE_WATCH, MODE_LIVE = 0, 1, 2
 MODE_NAMES = {MODE_OFF: "⏸️ Off", MODE_WATCH: "👀 Watch", MODE_LIVE: "💰 Live"}
 
+MONITORS = ("pairs", "strategy")
+
 OPTION_DEFAULTS = {
-    "mode": MODE_WATCH,
-    "pairs_enabled": 1,
-    "strategy_enabled": 0,
+    "pairs_mode": MODE_WATCH,
+    "strategy_mode": MODE_OFF,
     "buy_alerts_enabled": 1,
     "sell_alerts_enabled": 1,
     "buy_amount_eth": 0.001,
@@ -114,11 +115,10 @@ def forced_mode():
     return names.get(str(SETTINGS.mode or "").strip().lower())
 
 
-def current_mode():
+def current_mode(monitor):
+    saved = int(OPTIONS.get(f"{monitor}_mode", MODE_OFF) or 0)
     forced = forced_mode()
-    if forced is not None:
-        return forced
-    return int(OPTIONS.get("mode", MODE_WATCH) or 0)
+    return saved if forced is None else min(saved, forced)
 
 
 def is_owner(user_id):

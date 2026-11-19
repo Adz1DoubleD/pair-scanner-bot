@@ -12,7 +12,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 
 - **Finds new pairs.** It watches the Uniswap V2, Uniswap V3 and Aerodrome factories on Base for new pools paired with WETH.
 - **Audits them.** It checks liquidity, the liquidity-to-market-cap ratio, locked LP, taxes, contract security (GoPlus), honeypot risk (honeypot.is), and whether a sale actually goes through (simulated against the chain).
-- **Buys what passes,** in 💰 Live mode, up to your limits.
+- **Buys what passes,** when the monitor is on 💰 Live, up to your limits.
 - **Sells** on take-profit, stop-loss, trailing stop, rug (liquidity drop), dead token, or a honeypot appearing later.
 - **Strategy monitor (optional):** buys established pools with strong one-hour momentum.
 - **Alerts** for every buy, sell, would-buy and health problem.
@@ -20,13 +20,13 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 
 ## Safety
 
-- **Three modes, set in ⚙️ Settings → Monitors & Alerts → 🎛 Mode.** ⏸️ **Off**: nothing runs. 👀 **Watch**, the default for a new install: it finds and audits pairs and tells you what it *would* buy, but never buys. 💰 **Live**: it buys and sells. Switching to Live asks you to confirm, and needs `PRIVATE_KEY`.
+- **A mode for each monitor, set in ⚙️ Settings → Monitors & Alerts.** The 🤖 Pairs Monitor and the 🧭 Strategy Monitor each pick one of three: ⏸️ **Off**: it doesn't run. 👀 **Watch**: it finds and checks tokens and tells you what it *would* buy, but never buys. 💰 **Live**: it buys. So one can buy while the other only watches. A new install starts with Pairs on Watch and Strategy Off. Switching to Live asks you to confirm, and needs `PRIVATE_KEY`.
 - **Owner only.** The bot answers only `OWNER_ID`.
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.
-- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default) in Live, the health check switches the pairs and strategy monitors off and alerts you. In Watch the balance only shows on the Health screen, because nothing is bought.
-- **Its own health check.** Every `health_check_interval` minutes, in Watch and Live, it checks the RPCs, the wallet balance, the database (size, read-only, offline) and the pairs feed. It tells you once when something breaks, once more when it's fixed, and reminds you once if it's still broken after 12 hours. It rests while there's nothing to look after (no open positions and both monitors off). When the database nears `db_cleanup_mb` it clears the archive first. **🩺 Health** on the dashboard shows the same check whenever you want.
-- **Open positions are always looked after.** In Watch and Live the sell monitor keeps working on your stop-loss, take-profit and the other sell rules while any position is open, even with the pairs and strategy monitors off. Switching to Watch or Off with open positions reminds you what happens to them; only Off stops selling.
+- **Balance floor.** If the wallet falls below the minimum balance (0.01 ETH by default) while a monitor is on Live, the health check switches it to Watch and alerts you. In Watch the balance only shows on the Health screen, because nothing is bought.
+- **Its own health check.** Every `health_check_interval` minutes, while either monitor is on Watch or Live, it checks the RPCs, the wallet balance, the database (size, read-only, offline) and the pairs feed. It tells you once when something breaks, once more when it's fixed, and reminds you once if it's still broken after 12 hours. When the database nears `db_cleanup_mb` it clears the archive first. **🩺 Health** on the dashboard shows the same check whenever you want.
+- **Open positions are looked after.** While either monitor is on Watch or Live, the sell monitor keeps working on your stop-loss, take-profit and the other sell rules for every open position, whichever monitor bought it. Changing a mode with open positions reminds you what happens to them; only both monitors Off stops selling.
 
 ## What it connects to
 
@@ -48,7 +48,7 @@ python -m pair_scanner
 
 Run it from a folder with a `.env` file holding the settings below. [.env.example](.env.example) is a starting point. To find your Telegram user ID for `OWNER_ID`, message [@userinfobot](https://t.me/userinfobot). Then send `/start` to your bot.
 
-To look around before anything runs, set `MODE=off` first: it starts ⏸️ Off for that run, whatever mode is saved.
+To look around before anything runs, set `MODE=off` first: both monitors start ⏸️ Off for that run, whatever modes are saved.
 
 ## Settings
 
@@ -63,7 +63,7 @@ To look around before anything runs, set `MODE=off` first: it starts ⏸️ Off 
 | `alchemy_api_key`, `ankr_api_key` | `ALCHEMY_API_KEY`, `ANKR_API_KEY` | Optional RPC keys, tried before the public nodes |
 | `timezone` | `TIMEZONE` | Default `Europe/London` |
 | | `SENTRY_DSN` (standalone) | Optional error reporting when run on its own |
-| `mode` | `MODE` | `off`, `watch` or `live` to start in that mode for this run only, without changing the saved one. A host passes `mode="off"` for local runs |
+| `mode` | `MODE` | `off` or `watch` to cap both monitors at that mode for this run only, without changing the saved modes. A host passes `mode="off"` for local runs |
 | `db_dashboard_url` | `DB_DASHBOARD_URL` | Optional web page for your database, such as its Heroku resources page. Database health alerts get a **🔧 Open database dashboard** button. Never put `DB_URL` here: it holds the password |
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.

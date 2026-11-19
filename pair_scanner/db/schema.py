@@ -1,4 +1,12 @@
-from ..settings import MODE_LIVE, MODE_WATCH, OPTION_DEFAULTS, OPTIONS, option_value
+from ..settings import (
+    MODE_LIVE,
+    MODE_OFF,
+    MODE_WATCH,
+    MONITORS,
+    OPTION_DEFAULTS,
+    OPTIONS,
+    option_value,
+)
 from .core import db_session
 
 
@@ -74,16 +82,28 @@ async def init_scanner_db():
         rows = list(await cur.fetchall() or [])
 
         saved = {row["name"]: row["value"] for row in rows}
-        if "trading_enabled" in saved and "mode" not in saved:
-            mode = MODE_LIVE if int(float(saved["trading_enabled"])) else MODE_WATCH
+        old = ("mode", "trading_enabled", "pairs_enabled", "strategy_enabled")
+        if any(name in saved for name in old) and not any(
+            f"{m}_mode" in saved for m in MONITORS
+        ):
+            if "mode" in saved:
+                mode = int(float(saved["mode"]))
+            else:
+                trading = int(float(saved.get("trading_enabled", 0)))
+                mode = MODE_LIVE if trading else MODE_WATCH
+            for monitor in MONITORS:
+                default = "1" if OPTION_DEFAULTS[f"{monitor}_mode"] else "0"
+                enabled = int(float(saved.get(f"{monitor}_enabled", default)))
+                value = str(mode if enabled else MODE_OFF)
+                await cur.execute(
+                    "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
+                    (f"{monitor}_mode", value),
+                )
+                rows.append({"name": f"{monitor}_mode", "value": value})
             await cur.execute(
-                "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
-                ("mode", str(mode)),
+                "DELETE FROM scanner_settings WHERE name IN "
+                "('mode', 'trading_enabled', 'pairs_enabled', 'strategy_enabled')"
             )
-            await cur.execute(
-                "DELETE FROM scanner_settings WHERE name = 'trading_enabled'"
-            )
-            rows.append({"name": "mode", "value": str(mode)})
 
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)

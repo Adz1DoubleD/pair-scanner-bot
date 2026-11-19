@@ -68,8 +68,15 @@ async def scanner_block(context: ContextTypes.DEFAULT_TYPE, brief=False):
 
 
 async def home_block():
-    text = f"🎯 *Pair Scanner*\n\nMode: {MODE_NAMES[current_mode()]}" + (
-        " (for this run)" if forced_mode() is not None else ""
+    text = (
+        "🎯 *Pair Scanner*\n\n"
+        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
+        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}"
+        + (
+            f"\n_Capped at {MODE_NAMES[forced_mode()]} for this run_"
+            if forced_mode() is not None
+            else ""
+        )
     )
     return {
         "text": text,
@@ -207,8 +214,10 @@ async def start_scanner_bot(share_with=None, env_prefix=None, **options):
 
     await init_scanner_db()
 
-    mode = MODE_NAMES[current_mode()] + (
-        ", for this run" if forced_mode() is not None else ""
+    mode = (
+        f"Pairs {MODE_NAMES[current_mode('pairs')]}, "
+        f"Strategy {MODE_NAMES[current_mode('strategy')]}"
+        + (", for this run" if forced_mode() is not None else "")
     )
     if share_with is not None and not SETTINGS.token:
         jobs.application = share_with

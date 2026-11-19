@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import pair_scanner.monitors as monitors
+import pair_scanner.strategy as strategy
 import pair_scanner.w3.audit as audit
 import pair_scanner.w3.trade as trade
 from pair_scanner.settings import OPTIONS, SETTINGS
@@ -62,6 +62,7 @@ def passing_audit(monkeypatch):
     monkeypatch.setattr(audit, "pairs_mark_for_retry", AsyncMock())
     buy = AsyncMock()
     monkeypatch.setattr(audit, "execute_buy", buy)
+    monkeypatch.setattr(audit, "pairs_position_add", AsyncMock())
     return marks, buy
 
 
@@ -91,10 +92,10 @@ async def test_a_manual_buy_says_trading_is_off(passing_audit, watch_only):
 
 @pytest.mark.asyncio
 async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
-    monkeypatch.setattr(monitors, "NETWORKS", {"Base": {"chain_id": 8453}})
-    monkeypatch.setattr(monitors, "pairs_get_by_status", AsyncMock(return_value=[]))
+    monkeypatch.setattr(strategy, "NETWORKS", {"Base": {"chain_id": 8453}})
+    monkeypatch.setattr(strategy, "pairs_get_by_status", AsyncMock(return_value=[]))
     monkeypatch.setattr(
-        monitors,
+        strategy,
         "fetch_candidates",
         AsyncMock(
             return_value=(
@@ -113,24 +114,26 @@ async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
         ),
     )
     monkeypatch.setattr(
-        monitors,
+        strategy,
         "get_security_audit",
         AsyncMock(return_value=("clear", True, {"sell_tax": 0})),
     )
-    monkeypatch.setattr(monitors, "check_honeypot", AsyncMock(return_value=True))
-    monkeypatch.setattr(monitors, "simulate_sell", AsyncMock(return_value=True))
+    monkeypatch.setattr(strategy, "check_honeypot", AsyncMock(return_value=True))
+    monkeypatch.setattr(strategy, "simulate_sell", AsyncMock(return_value=True))
     monkeypatch.setattr(
-        monitors,
+        strategy,
         "get_token_metrics",
         AsyncMock(return_value={"liq_eth": 1000.0, "success": True}),
     )
-    monkeypatch.setattr(monitors, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
+    monkeypatch.setattr(strategy, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
     added = AsyncMock()
-    monkeypatch.setattr(monitors, "pairs_strat_add", added)
+    monkeypatch.setattr(strategy, "pairs_strat_add", added)
+    paper = AsyncMock()
+    monkeypatch.setattr(strategy, "pairs_position_add", paper)
     buy = AsyncMock()
-    monkeypatch.setattr(monitors, "execute_buy", buy)
+    monkeypatch.setattr(strategy, "execute_buy", buy)
 
-    result = await monitors.run_strategy_monitor(None)
+    result = await strategy.run_strategy_monitor(None)
 
     buy.assert_not_awaited()
     added.assert_awaited_once_with(
@@ -143,16 +146,16 @@ async def test_the_strategy_watches_instead_of_buying(monkeypatch, watch_only):
 async def test_the_strategy_only_mentions_each_watched_token_once(
     monkeypatch, watch_only
 ):
-    monkeypatch.setattr(monitors, "NETWORKS", {"Base": {"chain_id": 8453}})
+    monkeypatch.setattr(strategy, "NETWORKS", {"Base": {"chain_id": 8453}})
 
     async def by_status(status, table):
         if (status, table) == ("watched", "pairs"):
             return [{"target_address": PAIR["target_address"].upper()}]
         return []
 
-    monkeypatch.setattr(monitors, "pairs_get_by_status", by_status)
+    monkeypatch.setattr(strategy, "pairs_get_by_status", by_status)
     monkeypatch.setattr(
-        monitors,
+        strategy,
         "fetch_candidates",
         AsyncMock(
             return_value=(
@@ -171,9 +174,9 @@ async def test_the_strategy_only_mentions_each_watched_token_once(
         ),
     )
     audit_call = AsyncMock()
-    monkeypatch.setattr(monitors, "get_security_audit", audit_call)
+    monkeypatch.setattr(strategy, "get_security_audit", audit_call)
 
-    result = await monitors.run_strategy_monitor(None)
+    result = await strategy.run_strategy_monitor(None)
 
     audit_call.assert_not_awaited()
     assert result.get("watched", []) == []
@@ -188,13 +191,13 @@ async def test_with_trading_on_watched_tokens_can_be_bought(monkeypatch):
         calls.append((status, table))
         return []
 
-    monkeypatch.setattr(monitors, "NETWORKS", {"Base": {"chain_id": 8453}})
-    monkeypatch.setattr(monitors, "pairs_get_by_status", by_status)
+    monkeypatch.setattr(strategy, "NETWORKS", {"Base": {"chain_id": 8453}})
+    monkeypatch.setattr(strategy, "pairs_get_by_status", by_status)
     monkeypatch.setattr(
-        monitors, "fetch_candidates", AsyncMock(return_value=([], None))
+        strategy, "fetch_candidates", AsyncMock(return_value=([], None))
     )
 
-    await monitors.run_strategy_monitor(None)
+    await strategy.run_strategy_monitor(None)
 
     assert ("watched", "pairs") not in calls
 
@@ -297,3 +300,14 @@ async def test_a_token_with_one_big_holder_is_rejected(passing_audit, monkeypatc
     buy.assert_not_awaited()
     marks.assert_awaited_once_with(PAIR["target_address"], "whale")
     assert "Big Holder" in result["text"]
+
+
+@pytest.mark.asyncio
+async def test_a_watched_pair_is_followed_as_a_pretend_position(
+    passing_audit, watch_only
+):
+    await audit.audit_pair(None, [dict(PAIR)])
+
+    entry = audit.pairs_position_add.await_args.args[0]
+    assert entry["status"] == "paper"
+    assert entry["eth_spent"] == OPTIONS["buy_amount_eth"]

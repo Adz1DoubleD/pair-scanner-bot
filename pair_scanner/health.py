@@ -6,7 +6,6 @@ import sentry_sdk
 
 from .db.core import db_session
 from .db.pairs import db_total_mb, pairs_get_by_status, pairs_get_stats
-from .monitors import STRATEGY_RUN
 from .networks import NETWORKS
 from .settings import (
     MODE_LIVE,
@@ -18,6 +17,7 @@ from .settings import (
     current_mode,
     forced_mode,
 )
+from .strategy import STRATEGY_RUN
 from .w3 import get_w3_service
 from .w3.tools import fetch_network_bal
 

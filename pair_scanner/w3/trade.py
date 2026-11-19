@@ -144,10 +144,12 @@ async def execute_buy(
         return None, str(e)
 
 
-async def execute_sell(conf: dict, pos, skip_dust=False, half=False):
-    if all(current_mode(m) == MODE_OFF for m in MONITORS):
+async def execute_sell(
+    conf: dict, pos, skip_dust=False, half=False, quote=False, amount=None
+):
+    if not quote and all(current_mode(m) == MODE_OFF for m in MONITORS):
         return None, OFF
-    if not SETTINGS.private_key:
+    if not quote and not SETTINGS.private_key:
         return None, NO_KEY
     private_key = SETTINGS.private_key
 
@@ -157,12 +159,17 @@ async def execute_sell(conf: dict, pos, skip_dust=False, half=False):
 
     w3 = await open_w3(conf)
 
-    account = w3.eth.account.from_key(private_key)
+    account = None if quote else w3.eth.account.from_key(private_key)
     token_addr = Web3.to_checksum_address(pos["target_address"])
     weth_addr = Web3.to_checksum_address(conf["weth"])
     token_contract = w3.eth.contract(address=token_addr, abi=ERC20_ABI)
 
-    balance = await token_contract.functions.balanceOf(account.address).call()
+    balance = amount
+    if balance is None:
+        holder = account.address if account else SETTINGS.wallet_address
+        balance = await token_contract.functions.balanceOf(
+            Web3.to_checksum_address(holder)
+        ).call()
     if balance == 0:
         return None, "No token balance"
     if half:
@@ -198,6 +205,8 @@ async def execute_sell(conf: dict, pos, skip_dust=False, half=False):
                 ).call()
             )[0]
 
+        if quote:
+            return eth_out, None
         if skip_dust and eth_out < gas_price * DUST_GAS_UNITS:
             return None, "dust"
         min_eth = int(eth_out * (1 - (total_slippage / 100)))
@@ -327,7 +336,8 @@ async def execute_sell(conf: dict, pos, skip_dust=False, half=False):
         return None, "SELL_REVERTED"
 
     except Exception as e:
-        await nonce_manager.reset(account.address)
+        if account:
+            await nonce_manager.reset(account.address)
         sentry_sdk.capture_exception(e)
         return None, str(e)
 

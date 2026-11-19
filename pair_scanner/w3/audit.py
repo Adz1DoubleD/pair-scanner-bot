@@ -22,7 +22,7 @@ from ..networks import (
 )
 from ..settings import MODE_LIVE, MODE_NAMES, OPTIONS, current_mode
 from . import open_w3, pool_kind
-from .tools import dex_name
+from .tools import dex_name, trade_result
 from .trade import execute_buy, simulate_sell
 
 getcontext().prec = 50
@@ -146,6 +146,18 @@ async def audit_pair(
                     )
                     continue
                 await pairs_mark_audit_complete(token_addr, "watched")
+                if metrics.get("success"):
+                    await pairs_position_add(
+                        {
+                            **entry,
+                            "eth_spent": OPTIONS.get("buy_amount_eth", 0.0001),
+                            "status": "paper",
+                        },
+                        metrics,
+                        sec_status,
+                        is_renounced,
+                        gp_data,
+                    )
                 watched.append(f"${symbol} · {balance / 10**18:.2f} ETH liquidity")
                 results.append(f"👀 {watched[-1]} · would buy")
                 continue
@@ -161,6 +173,9 @@ async def audit_pair(
                 continue
 
             entry["buy_tx"] = tx_hash
+            entry["eth_spent"] = ((await trade_result(conf, tx_hash)) or {}).get(
+                "eth_spent"
+            )
             await pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data)
             await pairs_mark_audit_complete(token_addr, "monitoring")
             bought += 1

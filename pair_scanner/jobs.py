@@ -10,7 +10,7 @@ from .db.options import option_set
 from .db.pairs import clear_archive, db_total_mb
 from .health import scanner_health
 from .helpers import close_kb
-from .monitors import run_pairs_monitor, run_sell_monitor, run_strategy_monitor
+from .monitors import run_pairs_monitor, run_sell_monitor
 from .settings import (
     MODE_LIVE,
     MODE_OFF,
@@ -20,6 +20,7 @@ from .settings import (
     SETTINGS,
     current_mode,
 )
+from .strategy import run_strategy_monitor
 from .watchers import watch_new_pairs, watch_pair_metadata
 
 application = None
@@ -106,7 +107,8 @@ async def send_sells(context: ContextTypes.DEFAULT_TYPE):
     losses = (
         result.get("losses", []) if int(OPTIONS.get("loss_alerts_enabled", 1)) else []
     )
-    if not (sells or losses):
+    paper = result.get("paper", [])
+    if not (sells or losses or paper):
         return
 
     text = "\n\n".join(
@@ -116,10 +118,14 @@ async def send_sells(context: ContextTypes.DEFAULT_TYPE):
             f" {'└' if i == len(lines) - 1 else '├'} {line}"
             for i, line in enumerate(lines)
         )
-        for title, lines in (("💰 *Sell*", sells), ("🚨 *Lost*", losses))
+        for title, lines in (
+            ("💰 *Sell*", sells),
+            ("🚨 *Lost*", losses),
+            ("👀 *Would have sold* (watch-only)", paper),
+        )
         if lines
     )
-    if result.get("positions"):
+    if result.get("positions") and (sells or losses):
         held, max_positions = result["positions"]
         text += f"\n\n💼 Positions: {held}/{max_positions}"
 

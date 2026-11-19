@@ -386,3 +386,28 @@ def test_changing_a_mode_only_touches_the_jobs_it_affects(jq):
     OPTIONS["strategy_mode"] = 0
     jobs.apply_modes(app)
     assert sell.removed and strategy.removed
+
+
+@pytest.mark.asyncio
+async def test_watch_results_are_sent_even_with_sell_alerts_off(monkeypatch):
+    OPTIONS.update(profit_alerts_enabled=0, loss_alerts_enabled=0)
+    monkeypatch.setattr(
+        jobs,
+        "run_sell_monitor",
+        AsyncMock(
+            return_value={
+                "sells": ["$A · take-profit · +60.00%"],
+                "losses": [],
+                "paper": ["$W · would sell half · +31.00%"],
+                "charts": [],
+                "positions": (0, 3),
+            }
+        ),
+    )
+    c = ctx("Sell Monitor")
+
+    await jobs.send_sells(c)
+
+    assert c.bot.send_message.await_args.kwargs["text"] == (
+        "👀 *Would have sold* (watch-only)\n └ $W · would sell half · +31.00%"
+    )

@@ -12,7 +12,7 @@ from ..db.pairs import (
 )
 from ..health import scanner_health
 from ..helpers import escape_markdown, format_timestamp
-from ..monitors import run_sell_all, run_strategy_monitor
+from ..monitors import run_sell_all
 from ..settings import MODE_NAMES, MODE_OFF, SETTINGS, current_mode
 from ..w3.tools import fetch_eth_usd_price
 from . import pairs, positions
@@ -165,19 +165,18 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
 
     keyboard.append(
         [
-            InlineKeyboardButton("🧭 Run Strategy", callback_data="scanner:strategy"),
+            InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive"),
+            InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings"),
+        ]
+    )
+    keyboard.append(
+        [
+            InlineKeyboardButton("🩺 Health", callback_data="scanner:health"),
             InlineKeyboardButton(
                 "💼 Sell All", callback_data="scanner:sell_all_confirm"
             ),
         ]
     )
-    keyboard.append(
-        [
-            InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive"),
-            InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings"),
-        ]
-    )
-    keyboard.append([InlineKeyboardButton("🩺 Health", callback_data="scanner:health")])
     keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 
     return {
@@ -263,26 +262,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif action == "buy":
         await pairs.button_buy(update, context)
-
-    elif action == "strategy":
-        result = await run_strategy_monitor(context)
-        block = await handle_block(context)
-        charts = [
-            [
-                InlineKeyboardButton(
-                    f"📈 {symbol} Chart", url=f"https://dexscreener.com/base/{pair}"
-                )
-            ]
-            for symbol, pair in result["charts"]
-        ]
-        await query.edit_message_text(
-            f"{block['text']}\n\n{result['text']}",
-            reply_markup=InlineKeyboardMarkup(
-                charts + list(block["reply_markup"].inline_keyboard)
-            ),
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
 
     elif action == "sell_all_confirm":
         await query.edit_message_text(

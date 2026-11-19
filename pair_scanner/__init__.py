@@ -19,7 +19,7 @@ from telegram.ext import (
 from . import jobs
 from .blocks import dashboard
 from .blocks.balances import balances_block
-from .buttons import handle_button, menu_block
+from .buttons import handle_button
 from .db import close_db, init_scanner_db
 from .health import scanner_health
 from .networks import refresh_networks
@@ -190,9 +190,12 @@ async def _command_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("This bot only answers its owner.")
         return
     context.user_data.pop("state", None)
-    block = await menu_block()
+    block = await dashboard.handle_block(context)
     await update.message.reply_text(
-        block["text"], reply_markup=block["reply_markup"], parse_mode="Markdown"
+        block["text"],
+        reply_markup=block["reply_markup"],
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
     )
 
 

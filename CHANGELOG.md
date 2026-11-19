@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.2.0...v1.3.0) (2026-11-19)
+
+
+### Features
+
+* safer Strategy buys, and a health check for the Strategy side ([#49](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/49)) ([b4cbca7](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/b4cbca7e2ba3ed5515ac329be5f1b202b60a916a))
+
 ## [1.2.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.1.0...v1.2.0) (2026-11-19)
 
 

@@ -27,7 +27,11 @@ from .health import scanner_health
 from .networks import refresh_networks
 from .settings import (
     ENV_VARS,
+    MODE_LIVE,
     MODE_NAMES,
+    MODE_OFF,
+    MODE_WATCH,
+    MONITORS,
     SETTINGS,
     current_mode,
     forced_mode,
@@ -58,12 +62,28 @@ __all__ = [
     "handle_text_input",
     "scanner_block",
     "scanner_health",
+    "scanner_modes",
     "start_scanner_bot",
     "stop_scanner_bot",
 ]
 
 
-async def scanner_block(context: ContextTypes.DEFAULT_TYPE, brief=False):
+def scanner_modes() -> dict[str, str]:
+    """Each monitor's mode for this run, as {"pairs": "watch", "strategy": "off"}.
+
+    Values are "off", "watch" or "live", after any cap set at start-up.
+    """
+    names = {MODE_OFF: "off", MODE_WATCH: "watch", MODE_LIVE: "live"}
+    return {monitor: names[current_mode(monitor)] for monitor in MONITORS}
+
+
+async def scanner_block(
+    context: ContextTypes.DEFAULT_TYPE, brief: bool = False
+) -> dict:
+    """The scanner dashboard as a block: {"text": ..., "reply_markup": ...}.
+
+    With brief=True it returns only the stats text, for a host's daily summary.
+    """
     return await scanner_screen.handle_block(context, brief=brief)
 
 
@@ -96,7 +116,8 @@ async def home_block():
     }
 
 
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle a scanner button press. A host routes "scanner:" callbacks here."""
     query = update.callback_query
     data = query.data
 
@@ -157,7 +178,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await scanner_screen.handle_button(update, context)
 
 
-async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle a typed reply the scanner asked for, such as a new setting value."""
     if not is_owner(update.effective_user.id):
         return
     state = context.user_data.get("state") or ""
@@ -188,7 +210,18 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sentry_sdk.capture_exception(context.error)
 
 
-async def start_scanner_bot(share_with=None, env_prefix=None, **options):
+async def start_scanner_bot(
+    share_with: Application | None = None, env_prefix: str | None = None, **options
+) -> Application:
+    """Start the scanner and return the Application it runs on.
+
+    share_with: a host's Application. Without a bot token the scanner then runs
+    its jobs on the host's bot; with one it runs its own bot alongside.
+    env_prefix: prefix for its environment variables, "SCANNER_" inside a host
+    and none on its own.
+    options: settings that override the environment, such as owner_id,
+    alerts_chat_id, timezone or mode="off".
+    """
     if env_prefix is None:
         env_prefix = "" if share_with is None else "SCANNER_"
     setup(env_prefix, **options)
@@ -253,7 +286,8 @@ async def start_scanner_bot(share_with=None, env_prefix=None, **options):
     return application
 
 
-async def stop_scanner_bot():
+async def stop_scanner_bot() -> None:
+    """Stop the scanner's jobs, and its own bot if it started one."""
     application = jobs.application
     if application is not None:
         await jobs.stop_jobs(application)

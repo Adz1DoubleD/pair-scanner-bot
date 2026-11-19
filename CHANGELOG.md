@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.5.0...v0.5.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* no false alarms on a fresh or watch-only install ([#29](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/29)) ([f295306](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/f295306dec4aabc028b1621482799f135353f0c0))
+* read .env from the folder the bot is started in ([#27](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/27)) ([5800fee](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/5800feea76b59c2b8c226ec4acaa3fa466861591))
+
+
+### Documentation
+
+* what it connects to, starting on its own, and who is responsible ([#30](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/30)) ([ffe4f38](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/ffe4f38351ddc47f90c62cdbbae526258f0f7c8f))
+
 ## [0.5.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.4.0...v0.5.0) (2026-11-18)
 
 

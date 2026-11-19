@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.0.0...v1.1.0) (2026-11-19)
+
+
+### Features
+
+* Off, Watch and Live modes, and health alerts that say it once ([#36](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/36)) ([f5eb528](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/f5eb528ef87b4150ee919d7c9728e0ac8d3dbbe9))
+
 ## 1.0.0 (2026-11-19)
 
 First public release.

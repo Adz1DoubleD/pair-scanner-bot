@@ -8,6 +8,7 @@ from aiohttp import ClientSession, TCPConnector
 from web3 import AsyncHTTPProvider, AsyncWeb3, Web3
 
 import pair_scanner.w3 as w3_service
+from pair_scanner import jobs
 from pair_scanner.networks import NETWORKS
 from pair_scanner.settings import OPTION_DEFAULTS, OPTIONS, SETTINGS
 
@@ -211,11 +212,13 @@ def scanner_settings(monkeypatch):
         "private_key": TEST_KEY,
         "timezone": "Europe/London",
         "test_mode": False,
+        "mode": None,
         "env_prefix": "",
     }.items():
         monkeypatch.setattr(SETTINGS, name, value)
     OPTIONS.clear()
-    OPTIONS.update(OPTION_DEFAULTS, trading_enabled=1)
+    OPTIONS.update(OPTION_DEFAULTS, mode=2)
+    jobs.REPORTED.clear()
     yield SETTINGS
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)

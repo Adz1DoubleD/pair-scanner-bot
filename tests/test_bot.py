@@ -71,23 +71,6 @@ async def test_strangers_are_turned_away(data, saved):
 
 
 @pytest.mark.asyncio
-async def test_home_menu_shows_watch_only(monkeypatch):
-    OPTIONS["trading_enabled"] = 0
-    update, context = press("scanner:menu")
-
-    await pair_scanner.handle_button(update, context)
-
-    args = update.callback_query.edit_message_text.await_args
-    assert "Watch-only" in args.args[0]
-    assert callbacks(args.kwargs["reply_markup"]) == [
-        "scanner:home",
-        "scanner:balances",
-        "scanner:settings",
-        "cancel",
-    ]
-
-
-@pytest.mark.asyncio
 async def test_close_deletes_the_message():
     update, context = press("cancel")
 
@@ -121,46 +104,6 @@ async def test_export_refuses_other_tables(monkeypatch):
     await pair_scanner.handle_button(update, context)
 
     pair_scanner.pairs_get_by_status.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_turning_trading_on_asks_first(saved):
-    OPTIONS["trading_enabled"] = 0
-    update, context = press("scanner:settings:t:trading_enabled")
-
-    await pair_scanner.handle_button(update, context)
-
-    args = update.callback_query.edit_message_text.await_args
-    assert "Turn trading on?" in args.args[0]
-    assert "afford to lose" in args.args[0]
-    assert saved == []
-
-    update, context = press("scanner:settings:on:trading")
-    await pair_scanner.handle_button(update, context)
-    assert saved == [("trading_enabled", 1)]
-
-
-@pytest.mark.asyncio
-async def test_trading_needs_a_private_key(monkeypatch, saved):
-    OPTIONS["trading_enabled"] = 0
-    monkeypatch.setattr(SETTINGS, "private_key", None)
-
-    for data in ("scanner:settings:t:trading_enabled", "scanner:settings:on:trading"):
-        update, context = press(data)
-        await pair_scanner.handle_button(update, context)
-        assert update.callback_query.answer.await_args.kwargs["show_alert"] is True
-
-    assert saved == []
-
-
-@pytest.mark.asyncio
-async def test_turning_trading_off_needs_no_confirmation(saved):
-    OPTIONS["trading_enabled"] = 1
-    update, context = press("scanner:settings:t:trading_enabled")
-
-    await pair_scanner.handle_button(update, context)
-
-    assert saved == [("trading_enabled", 0)]
 
 
 async def type_value(text, user_data):
@@ -230,7 +173,7 @@ async def test_values_at_the_limits_are_accepted(saved, name, text):
 
 
 def test_every_number_setting_has_limits():
-    numbers = set(settings_screen.LABELS) - settings_screen.TOGGLES
+    numbers = set(settings_screen.LABELS) - settings_screen.TOGGLES - {"mode"}
     assert numbers == set(settings_screen.LIMITS)
 
 
@@ -378,7 +321,7 @@ async def test_inside_a_host_without_a_token_it_uses_the_hosts_bot(start_env):
     assert app is start_env.host
     assert start_env.built == []
     assert pair_scanner.jobs.application is start_env.host
-    assert {c.name for c in start_env.jq.calls} == {"Scanner Health"}
+    assert {c.name for c in start_env.jq.calls} == {"Scanner Health", "Sell Monitor"}
 
     await pair_scanner.stop_scanner_bot()
 
@@ -400,29 +343,6 @@ async def test_inside_a_host_it_reads_scanner_names(start_env, monkeypatch):
 async def test_on_its_own_it_still_needs_a_token(start_env):
     with pytest.raises(ValueError, match="BOT_TOKEN"):
         await pair_scanner.start_scanner_bot()
-
-
-@pytest.mark.asyncio
-async def test_in_test_mode_no_jobs_are_started(start_env, monkeypatch):
-    OPTIONS.update(pairs_enabled=1, strategy_enabled=1)
-
-    await pair_scanner.start_scanner_bot(share_with=start_env.host, test_mode=True)
-
-    assert start_env.jq.calls == []
-    assert pair_scanner.jobs.application is start_env.host
-    await pair_scanner.stop_scanner_bot()
-
-
-@pytest.mark.asyncio
-async def test_startup_says_which_bot_it_runs_on(start_env, capsys):
-    OPTIONS.update(pairs_enabled=0, strategy_enabled=0, trading_enabled=0)
-
-    await pair_scanner.start_scanner_bot(share_with=start_env.host)
-
-    assert capsys.readouterr().out.splitlines() == [
-        "🚀 Pair scanner running on the host's bot (watch-only)"
-    ]
-    await pair_scanner.stop_scanner_bot()
 
 
 @pytest.mark.asyncio
@@ -456,3 +376,113 @@ async def test_the_health_button_shows_the_scanners_own_health(
         "scanner:home",
         "cancel",
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,shown", [(0, "⏸️ Off"), (1, "👀 Watch"), (2, "💰 Live")])
+async def test_home_menu_shows_the_mode(mode, shown):
+    OPTIONS["mode"] = mode
+    update, context = press("scanner:menu")
+
+    await pair_scanner.handle_button(update, context)
+
+    args = update.callback_query.edit_message_text.await_args
+    assert f"Mode: {shown}" in args.args[0]
+    assert callbacks(args.kwargs["reply_markup"]) == [
+        "scanner:home",
+        "scanner:balances",
+        "scanner:settings",
+        "cancel",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_the_mode_screen_offers_all_three():
+    OPTIONS["mode"] = 1
+    update, context = press("scanner:settings:m")
+
+    await pair_scanner.handle_button(update, context)
+
+    args = update.callback_query.edit_message_text.await_args
+    buttons = [
+        b.text for row in args.kwargs["reply_markup"].inline_keyboard for b in row
+    ]
+    assert buttons[:3] == ["⏸️ Off", "✅ 👀 Watch", "💰 Live"]
+
+
+@pytest.mark.asyncio
+async def test_going_live_asks_first_and_needs_a_key(monkeypatch, saved):
+    OPTIONS["mode"] = 1
+    update, context = press("scanner:settings:set:2")
+
+    await pair_scanner.handle_button(update, context)
+
+    args = update.callback_query.edit_message_text.await_args
+    assert "Switch to 💰 Live?" in args.args[0]
+    assert saved == []
+
+    update, context = press("scanner:settings:on:live")
+    await pair_scanner.handle_button(update, context)
+    assert saved == [("mode", 2)]
+
+    monkeypatch.setattr(SETTINGS, "private_key", None)
+    for data in ("scanner:settings:set:2", "scanner:settings:on:live"):
+        update, context = press(data)
+        await pair_scanner.handle_button(update, context)
+        assert update.callback_query.answer.await_args.kwargs["show_alert"] is True
+    assert saved == [("mode", 2)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target,held,expected",
+    [
+        (1, 2, "Watch keeps selling them"),
+        (0, 1, "stop until you switch back"),
+        (1, 0, None),
+    ],
+)
+async def test_leaving_live_reminds_you_about_open_positions(
+    monkeypatch, saved, target, held, expected
+):
+    monkeypatch.setattr(
+        settings_screen,
+        "pairs_get_by_status",
+        AsyncMock(return_value=[{"id": i} for i in range(held)]),
+    )
+    update, context = press(f"scanner:settings:set:{target}")
+
+    await pair_scanner.handle_button(update, context)
+
+    assert saved == [("mode", target)]
+    text = update.callback_query.edit_message_text.await_args.args[0]
+    if expected:
+        assert expected in text and f"You hold {held} open position" in text
+    else:
+        assert "open position" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("option", [{"mode": "off"}, {"test_mode": True}])
+async def test_a_run_forced_off_starts_no_jobs(start_env, capsys, option):
+    OPTIONS.update(pairs_enabled=1, strategy_enabled=1, mode=2)
+
+    await pair_scanner.start_scanner_bot(share_with=start_env.host, **option)
+
+    assert start_env.jq.calls == []
+    assert capsys.readouterr().out.splitlines() == [
+        "🚀 Pair scanner running on the host's bot (⏸️ Off, for this run)"
+    ]
+    await pair_scanner.stop_scanner_bot()
+
+
+@pytest.mark.asyncio
+async def test_startup_says_which_bot_and_mode(start_env, capsys):
+    OPTIONS.update(pairs_enabled=0, strategy_enabled=0, mode=1)
+
+    await pair_scanner.start_scanner_bot(share_with=start_env.host)
+
+    assert capsys.readouterr().out.splitlines() == [
+        "🚀 Pair scanner running on the host's bot (👀 Watch)"
+    ]
+    await pair_scanner.stop_scanner_bot()

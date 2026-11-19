@@ -5,13 +5,23 @@ from telegram.ext import ContextTypes
 
 from .. import jobs
 from ..db.options import option_set
-from ..settings import OPTIONS, SETTINGS
+from ..db.pairs import pairs_get_by_status
+from ..settings import (
+    MODE_LIVE,
+    MODE_NAMES,
+    MODE_OFF,
+    MODE_WATCH,
+    OPTIONS,
+    SETTINGS,
+    current_mode,
+    forced_mode,
+)
 
 GROUPS = {
     "monitors": (
         "🛰️ Monitors & Alerts",
         [
-            "trading_enabled",
+            "mode",
             "pairs_enabled",
             "strategy_enabled",
             "buy_alerts_enabled",
@@ -58,7 +68,7 @@ GROUPS = {
 }
 
 LABELS = {
-    "trading_enabled": ("💸 Trading", ""),
+    "mode": ("🎛 Mode", ""),
     "pairs_enabled": ("🤖 Pairs Monitor", ""),
     "strategy_enabled": ("🧭 Strategy Monitor", ""),
     "buy_alerts_enabled": ("🔔 Buy Alerts", ""),
@@ -115,7 +125,6 @@ LIMITS = {
 }
 
 TOGGLES = {
-    "trading_enabled",
     "pairs_enabled",
     "strategy_enabled",
     "buy_alerts_enabled",
@@ -125,14 +134,23 @@ GROUP_OF = {name: g for g, (_, names) in GROUPS.items() for name in names}
 TO_SETTINGS = InlineKeyboardButton("🔙 Settings", callback_data="scanner:settings")
 
 
+MODE_HELP = {
+    MODE_OFF: "nothing runs: no scanning, no buys, no sells, no alerts.",
+    MODE_WATCH: "finds and audits pairs and says what it would buy, but never "
+    "buys. Open positions are still sold on your rules.",
+    MODE_LIVE: "buys and sells with your wallet.",
+}
+
+
 def settings_menu():
-    trading = int(OPTIONS.get("trading_enabled", 0))
+    mode = current_mode()
     text = (
         "⚙️ *Scanner Settings*\n\n"
+        + f"{MODE_NAMES[mode]}: {MODE_HELP[mode]}"
         + (
-            "💸 Trading is *ON*: the bot buys and sells with your wallet."
-            if trading
-            else "👀 *Watch-only*: the bot finds and audits pairs but never buys."
+            "\n_Set for this run only, by the bot's start-up settings._"
+            if forced_mode() is not None
+            else ""
         )
         + "\n\nPick a section:"
     )
@@ -150,7 +168,16 @@ def group_screen(group, status=None):
     for name in names:
         label, unit = LABELS[name]
         value = OPTIONS.get(name)
-        if name in TOGGLES:
+        if name == "mode":
+            kb.append(
+                [
+                    InlineKeyboardButton(
+                        f"{label}: {MODE_NAMES[current_mode()]}",
+                        callback_data="scanner:settings:m",
+                    )
+                ]
+            )
+        elif name in TOGGLES:
             shown = f"{'✅' if int(value) else '❌'} {label}"
             kb.append(
                 [
@@ -186,18 +213,48 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         text, markup = group_screen(name)
 
-    elif action == "t" and name in TOGGLES:
-        turning_on = not int(OPTIONS.get(name, 0))
-        if name == "trading_enabled" and turning_on:
+    elif action == "m":
+        await query.answer()
+        saved = int(OPTIONS.get("mode", MODE_WATCH))
+        text = "🎛 *Mode*\n\n" + "\n".join(
+            f"{MODE_NAMES[m]}: {MODE_HELP[m]}"
+            for m in (MODE_OFF, MODE_WATCH, MODE_LIVE)
+        )
+        if forced_mode() is not None:
+            text += (
+                f"\n\n_This run is set to {MODE_NAMES[forced_mode()]} by the bot's "
+                "start-up settings, so a change here applies from the next normal start._"
+            )
+        markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        ("✅ " if m == saved else "") + MODE_NAMES[m],
+                        callback_data=f"scanner:settings:set:{m}",
+                    )
+                    for m in (MODE_OFF, MODE_WATCH, MODE_LIVE)
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🔙 Monitors & Alerts",
+                        callback_data="scanner:settings:g:monitors",
+                    )
+                ],
+            ]
+        )
+
+    elif action == "set" and name in ("0", "1", "2"):
+        target = int(name)
+        if target == MODE_LIVE:
             if not SETTINGS.private_key:
                 await query.answer(
-                    f"Set {SETTINGS.env_prefix}PRIVATE_KEY before turning trading on.",
+                    f"Set {SETTINGS.env_prefix}PRIVATE_KEY before switching to Live.",
                     show_alert=True,
                 )
                 return
             await query.answer()
             text = (
-                "⚠️ *Turn trading on?*\n\n"
+                "⚠️ *Switch to 💰 Live?*\n\n"
                 f"The bot will spend up to `{Decimal(str(OPTIONS['buy_amount_eth'])).normalize():f} ETH` per "
                 f"buy, on up to {OPTIONS['max_positions']} tokens at a time, from "
                 "your wallet. New tokens are extremely risky: most fail and many "
@@ -207,30 +264,57 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [
                     [
                         InlineKeyboardButton(
-                            "❌ Cancel", callback_data="scanner:settings:g:monitors"
+                            "❌ Cancel", callback_data="scanner:settings:m"
                         ),
                         InlineKeyboardButton(
-                            "✅ Turn On", callback_data="scanner:settings:on:trading"
+                            "✅ Go Live", callback_data="scanner:settings:on:live"
                         ),
                     ]
                 ]
             )
         else:
-            await option_set(name, int(turning_on))
-            if name in jobs.TRADING_FLAGS and jobs.application is not None:
-                jobs.apply_toggle(jobs.application, name, bool(turning_on))
-            await query.answer("✅ Saved")
-            text, markup = group_screen(GROUP_OF[name])
+            await option_set("mode", target)
+            if jobs.application is not None:
+                jobs.start_jobs(jobs.application)
+            held = len(
+                await pairs_get_by_status(status="monitoring", table="positions") or []
+            )
+            status = f"{MODE_NAMES[target]}: {MODE_HELP[target]}"
+            if held and target == MODE_WATCH:
+                status += (
+                    f"\n\nYou hold {held} open position{'s' * (held != 1)}. Watch "
+                    "keeps selling them on your stop-loss and take-profit. Switch "
+                    "to ⏸️ Off to stop everything."
+                )
+            elif held:
+                status += (
+                    f"\n\n⚠️ You hold {held} open position{'s' * (held != 1)}. "
+                    "Their stop-losses and take-profits stop until you switch back."
+                )
+            await query.answer(f"{MODE_NAMES[target]} saved")
+            text, markup = group_screen("monitors", status=status)
 
-    elif action == "on" and name == "trading":
+    elif action == "t" and name in TOGGLES:
+        turning_on = not int(OPTIONS.get(name, 0))
+        await option_set(name, int(turning_on))
+        if name in jobs.TRADING_FLAGS and jobs.application is not None:
+            jobs.apply_toggle(jobs.application, name, bool(turning_on))
+        await query.answer("✅ Saved")
+        text, markup = group_screen(GROUP_OF[name])
+
+    elif action == "on" and name == "live":
         if not SETTINGS.private_key:
             await query.answer("No private key is set.", show_alert=True)
             return
-        await option_set("trading_enabled", 1)
-        await query.answer("💸 Trading is on")
-        text, markup = group_screen("monitors", status="💸 *Trading is on.*")
+        await option_set("mode", MODE_LIVE)
+        if jobs.application is not None:
+            jobs.start_jobs(jobs.application)
+        await query.answer("💰 Live")
+        text, markup = group_screen(
+            "monitors", status=f"{MODE_NAMES[MODE_LIVE]}: {MODE_HELP[MODE_LIVE]}"
+        )
 
-    elif action == "e" and name in LABELS and name not in TOGGLES:
+    elif action == "e" and name in LABELS and name not in TOGGLES and name != "mode":
         await query.answer()
         label, unit = LABELS[name]
         context.user_data["state"] = f"scanner:settings:{name}"

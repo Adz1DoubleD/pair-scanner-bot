@@ -20,7 +20,7 @@ from ..networks import (
     V3_POOL_ABI,
     WETH_ABI,
 )
-from ..settings import OPTIONS
+from ..settings import MODE_LIVE, OPTIONS, current_mode
 from . import open_w3, pool_kind
 from .tools import dex_name
 from .trade import execute_buy, simulate_sell
@@ -132,11 +132,11 @@ async def audit_pair(
                 continue
 
             passed += 1
-            if not int(OPTIONS.get("trading_enabled", 0)):
+            if current_mode() != MODE_LIVE:
                 if force_buy:
                     results.append(
-                        f"👀 {symbol} — trading is off. Turn it on in "
-                        "⚙️ Settings to buy."
+                        f"👀 {symbol} — the scanner is in Watch. Switch to "
+                        "💰 Live in ⚙️ Settings to buy."
                     )
                     continue
                 await pairs_mark_audit_complete(token_addr, "watched")

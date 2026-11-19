@@ -25,7 +25,15 @@ from .db import close_db, init_scanner_db
 from .db.pairs import pairs_get_by_status
 from .health import scanner_health
 from .networks import refresh_networks
-from .settings import ENV_VARS, OPTIONS, SETTINGS, is_owner, is_test_mode, setup
+from .settings import (
+    ENV_VARS,
+    MODE_NAMES,
+    SETTINGS,
+    current_mode,
+    forced_mode,
+    is_owner,
+    setup,
+)
 from .w3 import close_w3
 
 try:
@@ -60,9 +68,8 @@ async def scanner_block(context: ContextTypes.DEFAULT_TYPE, brief=False):
 
 
 async def home_block():
-    trading = int(OPTIONS.get("trading_enabled", 0))
-    text = "🎯 *Pair Scanner*\n\n" + (
-        "💸 Trading is on." if trading else "👀 Watch-only: trading is off."
+    text = f"🎯 *Pair Scanner*\n\nMode: {MODE_NAMES[current_mode()]}" + (
+        " (for this run)" if forced_mode() is not None else ""
     )
     return {
         "text": text,
@@ -200,14 +207,13 @@ async def start_scanner_bot(share_with=None, env_prefix=None, **options):
 
     await init_scanner_db()
 
-    mode = "trading" if int(OPTIONS.get("trading_enabled", 0)) else "watch-only"
-    if is_test_mode():
-        mode = "test mode"
+    mode = MODE_NAMES[current_mode()] + (
+        ", for this run" if forced_mode() is not None else ""
+    )
     if share_with is not None and not SETTINGS.token:
         jobs.application = share_with
         jobs.shares_host = True
-        if not is_test_mode():
-            jobs.start_jobs(share_with)
+        jobs.start_jobs(share_with)
         print(f"🚀 Pair scanner running on the host's bot ({mode})")
         return share_with
 
@@ -230,8 +236,7 @@ async def start_scanner_bot(share_with=None, env_prefix=None, **options):
     await application.start()
     jobs.application = application
     jobs.shares_host = False
-    if not is_test_mode():
-        jobs.start_jobs(application)
+    jobs.start_jobs(application)
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     print(
         f"🚀 Pair scanner running on its own bot @{application.bot.username} ({mode})"

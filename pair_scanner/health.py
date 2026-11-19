@@ -4,9 +4,17 @@ from datetime import datetime, timedelta, timezone
 import sentry_sdk
 
 from .db.core import db_session
-from .db.pairs import db_total_mb, pairs_get_stats
+from .db.pairs import db_total_mb, pairs_get_by_status, pairs_get_stats
 from .networks import NETWORKS
-from .settings import OPTIONS, SETTINGS, is_test_mode
+from .settings import (
+    MODE_LIVE,
+    MODE_NAMES,
+    MODE_OFF,
+    OPTIONS,
+    SETTINGS,
+    current_mode,
+    forced_mode,
+)
 from .w3 import get_w3_service
 from .w3.tools import fetch_network_bal
 
@@ -17,8 +25,17 @@ STARTED_AT = datetime.now(timezone.utc)
 async def scanner_health():
     pairs_on = int(OPTIONS.get("pairs_enabled", 0) or 0) == 1
     strategy_on = int(OPTIONS.get("strategy_enabled", 0) or 0) == 1
-    trading_on = int(OPTIONS.get("trading_enabled", 0) or 0) == 1
+    mode = current_mode()
+    trading_on = mode == MODE_LIVE
     alerts = []
+
+    try:
+        open_positions = len(
+            await pairs_get_by_status(status="monitoring", table="positions") or []
+        )
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        open_positions = 0
 
     db_problem = True
     try:
@@ -88,7 +105,7 @@ async def scanner_health():
     elif trading_on and failed and total_eth < minimum:
         alerts.append(f"⚠️ *ETH BALANCE UNKNOWN*: check failed for {', '.join(failed)}")
 
-    if pairs_on and not is_test_mode():
+    if pairs_on and mode != MODE_OFF:
         try:
             stats, _, _, last_scan = await pairs_get_stats(days=1)
         except Exception as e:
@@ -116,7 +133,9 @@ async def scanner_health():
     monitors = [
         f"Pairs: {'🟢 ON' if pairs_on else '🔴 OFF'}",
         f"Strategy: {'🟢 ON' if strategy_on else '🔴 OFF'}",
-        f"Trading: {'🟢 ON' if trading_on else '👀 Watch-only'}",
+        f"Mode: {MODE_NAMES[mode]}"
+        + (" (for this run)" if forced_mode() is not None else ""),
+        f"Open positions: {open_positions}",
     ]
     wallet = [
         f"ETH: {total_eth:.4f}"
@@ -142,6 +161,8 @@ async def scanner_health():
         "text": text,
         "alerts": alerts,
         "low_eth": eth_low and trading_on and (pairs_on or strategy_on),
+        "open_positions": open_positions,
+        "idle": not (pairs_on or strategy_on or open_positions),
         "eth": None if failed else total_eth,
         "db_problem": db_problem,
     }

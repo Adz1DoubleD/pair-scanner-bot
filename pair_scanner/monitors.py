@@ -18,7 +18,7 @@ from .helpers import escape_markdown
 from .networks import (
     NETWORKS,
 )
-from .settings import OPTIONS
+from .settings import MODE_LIVE, OPTIONS, current_mode
 from .w3.audit import (
     audit_pair,
     check_honeypot,
@@ -349,7 +349,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
     ]
     held = [p for p in positions if p.get("status") == "monitoring"]
     traded_addrs = {(p.get("target_address") or "").lower() for p in positions}
-    if not int(s.get("trading_enabled", 0)):
+    if current_mode() != MODE_LIVE:
         traded_addrs |= {
             (p.get("target_address") or "").lower()
             for p in await pairs_get_by_status(status="watched", table="pairs") or []
@@ -431,7 +431,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
                 continue
 
             passed += 1
-            if not int(OPTIONS.get("trading_enabled", 0)):
+            if current_mode() != MODE_LIVE:
                 await pairs_strat_add(
                     token_addr, c["pair_addr"], c["symbol"], "watched"
                 )

@@ -1,4 +1,4 @@
-from ..settings import OPTION_DEFAULTS, OPTIONS, option_value
+from ..settings import MODE_LIVE, MODE_WATCH, OPTION_DEFAULTS, OPTIONS, option_value
 from .core import db_session
 
 
@@ -72,6 +72,18 @@ async def init_scanner_db():
 
         await cur.execute("SELECT name, value FROM scanner_settings")
         rows = list(await cur.fetchall() or [])
+
+        saved = {row["name"]: row["value"] for row in rows}
+        if "trading_enabled" in saved and "mode" not in saved:
+            mode = MODE_LIVE if int(float(saved["trading_enabled"])) else MODE_WATCH
+            await cur.execute(
+                "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
+                ("mode", str(mode)),
+            )
+            await cur.execute(
+                "DELETE FROM scanner_settings WHERE name = 'trading_enabled'"
+            )
+            rows.append({"name": "mode", "value": str(mode)})
 
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)

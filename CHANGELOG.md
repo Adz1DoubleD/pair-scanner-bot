@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.1.0...v1.2.0) (2026-11-19)
+
+
+### Features
+
+* a switch per alert type, and losses shown on their own ([#44](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/44)) ([bc9f856](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/bc9f8566b6e8bd324717a5642bc37c34c1dcf0a2))
+* a total for both monitors on the dashboard, and P&L per monitor ([#46](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/46)) ([1dfd29a](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/1dfd29a6fbe7b998e69dce55f00139140e721df6))
+* sell half once a position is up 30% ([#42](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/42)) ([2687fcf](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/2687fcf5d5f848f589c3dd09a3d1dcb14a745c7a))
+* start the trailing stop earlier, and reject tokens with one big holder ([#40](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/40)) ([140de8b](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/140de8bd8ca64a8070842df78950e3ff86a00484))
+* stats per monitor, would-buy counts, and every loss in the P&L ([#45](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/45)) ([dd0ee6c](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/dd0ee6cb07a9b7717947878996eca4b143974642))
+
 ## [1.1.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.0.0...v1.1.0) (2026-11-19)
 
 

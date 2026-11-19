@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pair-scanner-bot"
-version = "1.0.0"
+version = "1.1.0"
 description = "Self-hosted Telegram bot that watches new token pairs, audits them and can trade them from your own wallet."
 readme = "README.md"
 requires-python = ">=3.12"

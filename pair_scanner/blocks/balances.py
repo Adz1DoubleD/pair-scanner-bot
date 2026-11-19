@@ -1,3 +1,5 @@
+"""The wallet balances screen."""
+
 import asyncio
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup

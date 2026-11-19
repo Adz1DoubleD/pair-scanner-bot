@@ -1,3 +1,7 @@
+"""Screens for positions: lists, details and manual sells."""
+
+from typing import Any
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 from web3 import Web3
@@ -24,11 +28,13 @@ from ..w3.tools import (
 from ..w3.trade import execute_sell
 
 
-async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
+async def block_detail(
+    context: ContextTypes.DEFAULT_TYPE | None, row_id: int | str, table: str
+) -> dict[str, Any]:
     data = await pairs_get_by_id(row_id, "positions")
     if not data:
         kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:home")]]
+            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:dashboard")]]
         )
         return {
             "text": "❌ Position not found.",
@@ -47,9 +53,8 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
     pnl_emoji = "🚀" if pnl >= 0 else "📉"
     current_p = float(data.get("current_price_eth") or 0)
     current_status = data.get("status", "").lower()
-    network_key = data.get("network", "Base")
-    conf = NETWORKS.get(network_key)
-    token_addr = data.get("target_address")
+    conf = NETWORKS[data.get("network") or "Base"]
+    token_addr = data["target_address"]
     dex = conf["dex"]
 
     balance_line = ""
@@ -126,7 +131,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
 
     msg = (
         f"💰 *Position Details: #{row_id}* (${escape_markdown(data.get('symbol') or '???')})\n\n"
-        f"🌐 *Network:* {network_key}\n"
+        f"🌐 *Network:* {data.get('network') or 'Base'}\n"
         f"🚦 *Status:* `{data.get('status', 'N/A').upper()}`\n"
         f"{pnl_emoji} *PnL:* `{pnl:+.2f}%`\n"
         f"🏆 *Peak PnL:* `{peak_pnl:+.2f}%`\n"
@@ -215,7 +220,9 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
     return {"text": msg, "reply_markup": InlineKeyboardMarkup(keyboard)}
 
 
-async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
+async def block_list(
+    context: ContextTypes.DEFAULT_TYPE | None, status_arg: str
+) -> dict[str, Any]:
     parts = status_arg.split(":")
     status_input = parts[0].lower()
     current_page = int(parts[1]) if len(parts) > 1 else 0
@@ -226,7 +233,11 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
             "text": f"No positions found with status: {status_input.upper()}",
             "reply_markup": InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton("🔙 Back", callback_data="scanner:home")],
+                    [
+                        InlineKeyboardButton(
+                            "🔙 Back", callback_data="scanner:dashboard"
+                        )
+                    ],
                     [InlineKeyboardButton("❌ Close", callback_data="cancel")],
                 ]
             ),
@@ -279,7 +290,11 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
         keyboard.append(id_buttons[i : i + 5])
     keyboard.extend(
         [
-            [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")],
+            [
+                InlineKeyboardButton(
+                    "🔙 Back to Scanner", callback_data="scanner:dashboard"
+                )
+            ],
             [InlineKeyboardButton("❌ Close", callback_data="cancel")],
         ]
     )
@@ -291,53 +306,14 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     }
 
 
-async def button_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE, row_id):
-    query = update.callback_query
-    pos = await pairs_get_by_id(row_id, "positions")
-    if not pos or pos.get("status") != "monitoring":
-        result = await block_detail(context, row_id, "positions")
-        await query.edit_message_text(
-            text=result["text"],
-            reply_markup=result["reply_markup"],
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
-        return
-
-    network_key = pos.get("network", "Base")
-    network_conf = NETWORKS.get(network_key)
-
-    new_metrics = await get_token_metrics(pos, network_conf)
-    sec_status, is_renounced, gp_data = await get_security_audit(
-        pos["target_address"], network_conf["chain_id"]
-    )
-
-    entry_price = float(pos.get("entry_price_eth", 0))
-    entry_liq = float(pos.get("entry_liq_eth", 0))
-    new_price = float(new_metrics.get("price_eth", 0))
-    new_liq = float(new_metrics.get("liq_eth", 0))
-
-    if entry_price > 0 and entry_liq > 0:
-        pnl = round(((new_price - entry_price) / entry_price * 100), 2)
-        liq_change = round(((new_liq - entry_liq) / entry_liq * 100), 2)
-        await pairs_position_update(
-            new_metrics, pnl, liq_change, sec_status, is_renounced, pos["id"], gp_data
-        )
-
-    result = await block_detail(context, row_id, "positions")
-    await query.edit_message_text(
-        text=result["text"],
-        reply_markup=result["reply_markup"],
-        parse_mode="Markdown",
-        disable_web_page_preview=True,
-    )
-
-
-async def button_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_sell(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     pos_id = query.data.split(":")[-1]
     pos = await pairs_get_by_id(pos_id, "positions")
-    conf = NETWORKS.get(pos["network"])
+    if pos is None:
+        await query.answer("That position is gone.", show_alert=True)
+        return
+    conf = NETWORKS[pos.get("network") or "Base"]
     symbol = escape_markdown(pos.get("symbol") or "???")
 
     tx_hash, error = await execute_sell(conf, pos)
@@ -371,15 +347,58 @@ async def button_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def button_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     parts = query.data.split(":")
     row_id = parts[2] if len(parts) > 2 else None
     if row_id and row_id.isdigit():
-        await button_refresh(update, context, row_id)
+        await _button_refresh(update, context, row_id)
         return
 
     result = await block_list(context, ":".join(parts[2:]) or "monitoring")
+    await query.edit_message_text(
+        text=result["text"],
+        reply_markup=result["reply_markup"],
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+
+async def _button_refresh(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, row_id: str
+) -> None:
+    query = update.callback_query
+    pos = await pairs_get_by_id(row_id, "positions")
+    if not pos or pos.get("status") != "monitoring":
+        result = await block_detail(context, row_id, "positions")
+        await query.edit_message_text(
+            text=result["text"],
+            reply_markup=result["reply_markup"],
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+        return
+
+    network_conf = NETWORKS[pos.get("network") or "Base"]
+
+    new_metrics = await get_token_metrics(pos, network_conf)
+    sec_status, is_renounced, gp_data = await get_security_audit(
+        pos["target_address"], network_conf["chain_id"]
+    )
+
+    entry_price = float(pos.get("entry_price_eth", 0))
+    entry_liq = float(pos.get("entry_liq_eth", 0))
+    new_price = float(new_metrics.get("price_eth", 0))
+    new_liq = float(new_metrics.get("liq_eth", 0))
+
+    if entry_price > 0 and entry_liq > 0:
+        pnl = round(((new_price - entry_price) / entry_price * 100), 2)
+        liq_change = round(((new_liq - entry_liq) / entry_liq * 100), 2)
+        await pairs_position_update(
+            new_metrics, pnl, liq_change, sec_status, is_renounced, pos["id"], gp_data
+        )
+
+    result = await block_detail(context, row_id, "positions")
     await query.edit_message_text(
         text=result["text"],
         reply_markup=result["reply_markup"],

@@ -32,7 +32,7 @@ async def test_buy_alert_lists_buys_watched_and_failures(monkeypatch):
     )
     c = ctx("Pairs Monitor")
 
-    await jobs.send_buys(c)
+    await jobs._send_buys(c)
 
     sent = c.bot.send_message.await_args.kwargs
     assert sent["chat_id"] == "-100"
@@ -56,7 +56,7 @@ async def test_watch_only_alerts_have_no_positions_line(monkeypatch):
     )
     c = ctx("Strategy Monitor")
 
-    await jobs.send_buys(c)
+    await jobs._send_buys(c)
 
     text = c.bot.send_message.await_args.kwargs["text"]
     assert text.startswith("👀 *Strategy: would buy*")
@@ -74,7 +74,7 @@ async def test_quiet_runs_send_nothing(monkeypatch, result, alerts_on):
     monkeypatch.setattr(jobs, "run_pairs_monitor", AsyncMock(return_value=result))
     c = ctx("Pairs Monitor")
 
-    await jobs.send_buys(c)
+    await jobs._send_buys(c)
 
     c.bot.send_message.assert_not_awaited()
 
@@ -95,7 +95,7 @@ async def test_sell_alert(monkeypatch):
     )
     c = ctx("Sell Monitor")
 
-    await jobs.send_sells(c)
+    await jobs._send_sells(c)
 
     assert c.bot.send_message.await_args.kwargs["text"] == (
         "💰 *Sell*\n └ $A · take-profit · +60.00%\n\n"
@@ -130,7 +130,7 @@ async def test_profit_and_loss_alerts_switch_off_separately(
     )
     c = ctx("Sell Monitor")
 
-    await jobs.send_sells(c)
+    await jobs._send_sells(c)
 
     if expected is None:
         c.bot.send_message.assert_not_awaited()
@@ -156,7 +156,7 @@ async def test_with_buy_alerts_off_would_buys_and_failures_still_arrive(monkeypa
     )
     c = ctx("Pairs Monitor")
 
-    await jobs.send_buys(c)
+    await jobs._send_buys(c)
 
     sent = c.bot.send_message.await_args.kwargs
     assert sent["text"] == (
@@ -187,7 +187,7 @@ async def test_low_eth_switches_live_monitors_to_watch_and_alerts(monkeypatch, j
         jq.add_existing(name)
     c = ctx("Scanner Health", jq)
 
-    await jobs.send_health(c)
+    await jobs._send_health(c)
 
     assert saved == [("pairs_mode", 1)]
     assert len(jq.get_jobs_by_name("Pairs Monitor")) == 1
@@ -219,7 +219,7 @@ async def test_the_health_job_cleans_the_database_near_its_limit(
     )
     c = ctx("Scanner Health")
 
-    await jobs.send_health(c)
+    await jobs._send_health(c)
 
     assert clear.await_count == int(cleaned)
     sent = c.bot.send_message.await_args
@@ -241,7 +241,7 @@ async def test_a_failed_clean_goes_to_sentry_not_the_alerts(monkeypatch):
     )
     c = ctx("Scanner Health")
 
-    await jobs.send_health(c)
+    await jobs._send_health(c)
 
     c.bot.send_message.assert_not_awaited()
     assert str(reported[0]) == "db down"
@@ -256,7 +256,7 @@ async def test_healthy_runs_send_nothing(monkeypatch):
     )
     c = ctx("Scanner Health")
 
-    await jobs.send_health(c)
+    await jobs._send_health(c)
 
     c.bot.send_message.assert_not_awaited()
 
@@ -312,7 +312,7 @@ async def test_a_database_alert_links_to_the_dashboard_when_set(monkeypatch, url
     )
     c = ctx("Scanner Health")
 
-    await jobs.send_health(c)
+    await jobs._send_health(c)
 
     rows = c.bot.send_message.await_args.kwargs["reply_markup"].inline_keyboard
     urls = [b.url for row in rows for b in row if b.url]
@@ -330,18 +330,18 @@ async def test_health_alerts_once_then_says_when_it_is_fixed(monkeypatch):
 
     monkeypatch.setattr(jobs, "scanner_health", health_report([rpc]))
     first = ctx("Scanner Health")
-    await jobs.send_health(first)
+    await jobs._send_health(first)
     assert first.bot.send_message.await_args.kwargs["text"] == (
         "🚨 *SCANNER HEALTH ALERT*\n\n• " + rpc
     )
 
     again = ctx("Scanner Health")
-    await jobs.send_health(again)
+    await jobs._send_health(again)
     again.bot.send_message.assert_not_awaited()
 
     monkeypatch.setattr(jobs, "scanner_health", health_report([]))
     fixed = ctx("Scanner Health")
-    await jobs.send_health(fixed)
+    await jobs._send_health(fixed)
     text = fixed.bot.send_message.await_args.kwargs["text"]
     assert text.startswith("✅ *SCANNER HEALTH RECOVERED*")
     assert "🔥 *Base RPC* is fine again" in text
@@ -351,17 +351,17 @@ async def test_health_alerts_once_then_says_when_it_is_fixed(monkeypatch):
 async def test_a_long_problem_gets_one_reminder(monkeypatch):
     rpc = "🔥 *Base RPC*: all down"
     monkeypatch.setattr(jobs, "scanner_health", health_report([rpc]))
-    await jobs.send_health(ctx("Scanner Health"))
+    await jobs._send_health(ctx("Scanner Health"))
     jobs.REPORTED["🔥 *Base RPC*"]["since"] -= jobs.REMIND_AFTER
 
     later = ctx("Scanner Health")
-    await jobs.send_health(later)
+    await jobs._send_health(later)
     assert later.bot.send_message.await_args.kwargs["text"].startswith(
         "⏰ *STILL A PROBLEM*"
     )
 
     once = ctx("Scanner Health")
-    await jobs.send_health(once)
+    await jobs._send_health(once)
     once.bot.send_message.assert_not_awaited()
 
 
@@ -406,7 +406,7 @@ async def test_watch_results_are_sent_even_with_sell_alerts_off(monkeypatch):
     )
     c = ctx("Sell Monitor")
 
-    await jobs.send_sells(c)
+    await jobs._send_sells(c)
 
     assert c.bot.send_message.await_args.kwargs["text"] == (
         "👀 *Would have sold* (watch-only)\n └ $W · would sell half · +31.00%"

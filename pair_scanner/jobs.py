@@ -1,16 +1,18 @@
+"""Scheduling the monitors and watchers, and sending their alerts."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import sentry_sdk
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import Application, ContextTypes
 
 from .db.options import option_set
 from .db.pairs import clear_archive, db_total_mb
 from .health import scanner_health
 from .helpers import close_kb
-from .monitors import run_pairs_monitor, run_sell_monitor
 from .settings import (
     MODE_LIVE,
     MODE_OFF,
@@ -20,18 +22,19 @@ from .settings import (
     SETTINGS,
     current_mode,
 )
-from .strategy import run_strategy_monitor
-from .watchers import watch_new_pairs, watch_pair_metadata
+from .trading.monitors import run_pairs_monitor, run_sell_monitor
+from .trading.strategy import run_strategy_monitor
+from .trading.watchers import watch_new_pairs, watch_pair_metadata
 
-application = None
+application: Application | None = None
 shares_host = False
 DEFAULT_INTERVAL_MINUTES = 60
 LIVE_FIRST_RUN_SECONDS = 60
 REMIND_AFTER = timedelta(hours=12)
-REPORTED = {}
+REPORTED: dict[str, dict[str, Any]] = {}
 
 
-async def send_buys(context: ContextTypes.DEFAULT_TYPE):
+async def _send_buys(context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.job.name == "Pairs Monitor":
         result = await run_pairs_monitor(context)
         if isinstance(result, str):
@@ -99,7 +102,7 @@ async def send_buys(context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def send_sells(context: ContextTypes.DEFAULT_TYPE):
+async def _send_sells(context: ContextTypes.DEFAULT_TYPE) -> None:
     result = await run_sell_monitor(context) or {}
     sells = (
         result.get("sells", []) if int(OPTIONS.get("profit_alerts_enabled", 1)) else []
@@ -148,7 +151,7 @@ async def send_sells(context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def send_health(context: ContextTypes.DEFAULT_TYPE):
+async def _send_health(context: ContextTypes.DEFAULT_TYPE) -> None:
     cleaned = []
     try:
         before = await db_total_mb()
@@ -237,7 +240,7 @@ async def send_health(context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-JOBS = {
+JOBS: dict[str, dict[str, Any]] = {
     "New Pairs Watcher": {
         "kind": "loop",
         "callback": watch_new_pairs,
@@ -250,34 +253,100 @@ JOBS = {
     },
     "Pairs Monitor": {
         "kind": "repeating",
-        "callback": send_buys,
+        "callback": _send_buys,
         "monitor": "pairs",
         "interval": "pairs_monitor_interval",
         "first": 240,
     },
     "Sell Monitor": {
         "kind": "repeating",
-        "callback": send_sells,
+        "callback": _send_sells,
         "interval": "sell_monitor_interval",
         "first": 360,
     },
     "Strategy Monitor": {
         "kind": "repeating",
-        "callback": send_buys,
+        "callback": _send_buys,
         "monitor": "strategy",
         "interval": "strategy_monitor_interval",
         "first": 480,
     },
     "Scanner Health": {
         "kind": "repeating",
-        "callback": send_health,
+        "callback": _send_health,
         "interval": "health_check_interval",
         "first": 600,
     },
 }
 
 
-def set_job(name, application, enabled=None, minutes=None, first=None):
+def apply_modes(application: Application) -> None:
+    running_tasks = {
+        t.get_name() for t in application.bot_data.setdefault("scanner_bg_tasks", set())
+    }
+    for name, cfg in JOBS.items():
+        should_run = any(
+            current_mode(m) != MODE_OFF
+            for m in ((cfg["monitor"],) if cfg.get("monitor") else MONITORS)
+        )
+        if cfg["kind"] == "loop":
+            running = name in running_tasks
+        else:
+            running = bool(application.job_queue.get_jobs_by_name(name))
+        if should_run != running:
+            _set_job(
+                name, application, enabled=should_run, first=LIVE_FIRST_RUN_SECONDS
+            )
+
+
+def apply_interval(
+    application: Application, interval_setting: str, minutes: float
+) -> tuple[str, bool] | None:
+    for name, cfg in JOBS.items():
+        if cfg.get("interval") == interval_setting:
+            return name, _set_job(
+                name, application, minutes=minutes, first=LIVE_FIRST_RUN_SECONDS
+            )
+    return None
+
+
+def start_jobs(application: Application) -> None:
+    for name in JOBS:
+        _set_job(name, application)
+
+
+async def stop_jobs(application: Application) -> None:
+    tasks = list(application.bot_data.setdefault("scanner_bg_tasks", set()))
+    for t in tasks:
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def job_status(application: Application | None, job_name: str) -> tuple[str, str]:
+    jobs = application.job_queue.get_jobs_by_name(job_name) if application else []
+    if not jobs or jobs[0].next_t is None:
+        monitor = JOBS.get(job_name, {}).get("monitor")
+        if monitor and current_mode(monitor) == MODE_OFF:
+            return "⏸️ Off", "--"
+        return "Not Scheduled", "--"
+
+    tz = ZoneInfo(SETTINGS.timezone)
+    next_run = jobs[0].next_t.astimezone(tz)
+    total_seconds = int((next_run - datetime.now(tz)).total_seconds())
+    if total_seconds < 0:
+        return next_run.strftime("%H:%M"), "Soon..."
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    return next_run.strftime("%H:%M"), f"{hours}h {minutes}m"
+
+
+def _set_job(
+    name: str,
+    application: Application,
+    enabled: bool | None = None,
+    minutes: float | None = None,
+    first: float | None = None,
+) -> bool:
     cfg = JOBS[name]
     bg_tasks = application.bot_data.setdefault("scanner_bg_tasks", set())
     job_queue = application.job_queue
@@ -302,7 +371,7 @@ def set_job(name, application, enabled=None, minutes=None, first=None):
     if cfg["kind"] == "loop":
         callback = cfg["callback"]
 
-        async def keep_running():
+        async def keep_running() -> None:
             while True:
                 try:
                     await callback()
@@ -331,59 +400,3 @@ def set_job(name, application, enabled=None, minutes=None, first=None):
         name=name,
     )
     return True
-
-
-def apply_modes(application):
-    running_tasks = {
-        t.get_name() for t in application.bot_data.setdefault("scanner_bg_tasks", set())
-    }
-    for name, cfg in JOBS.items():
-        should_run = any(
-            current_mode(m) != MODE_OFF
-            for m in ((cfg["monitor"],) if cfg.get("monitor") else MONITORS)
-        )
-        if cfg["kind"] == "loop":
-            running = name in running_tasks
-        else:
-            running = bool(application.job_queue.get_jobs_by_name(name))
-        if should_run != running:
-            set_job(name, application, enabled=should_run, first=LIVE_FIRST_RUN_SECONDS)
-
-
-def apply_interval(application, interval_setting, minutes):
-    for name, cfg in JOBS.items():
-        if cfg.get("interval") == interval_setting:
-            return name, set_job(
-                name, application, minutes=minutes, first=LIVE_FIRST_RUN_SECONDS
-            )
-    return None
-
-
-def start_jobs(application):
-    for name in JOBS:
-        set_job(name, application)
-
-
-async def stop_jobs(application):
-    tasks = list(application.bot_data.setdefault("scanner_bg_tasks", set()))
-    for t in tasks:
-        t.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-
-def job_status(application, job_name):
-    jobs = application.job_queue.get_jobs_by_name(job_name) if application else []
-    if not jobs or jobs[0].next_t is None:
-        monitor = JOBS.get(job_name, {}).get("monitor")
-        if monitor and current_mode(monitor) == MODE_OFF:
-            return "⏸️ Off", "--"
-        return "Not Scheduled", "--"
-
-    tz = ZoneInfo(SETTINGS.timezone)
-    next_run = jobs[0].next_t.astimezone(tz)
-    total_seconds = int((next_run - datetime.now(tz)).total_seconds())
-    if total_seconds < 0:
-        return next_run.strftime("%H:%M"), "Soon..."
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    return next_run.strftime("%H:%M"), f"{hours}h {minutes}m"

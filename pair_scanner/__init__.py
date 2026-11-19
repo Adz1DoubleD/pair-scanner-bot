@@ -1,13 +1,12 @@
-import csv
-import io
+"""Pair scanner: start it on its own or inside a host bot, and the functions a host can use."""
+
 import logging
 import os
-from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 
 import sentry_sdk
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.error import BadRequest
+from telegram import Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -18,11 +17,10 @@ from telegram.ext import (
 )
 
 from . import jobs
-from .blocks import scanner as scanner_screen
-from .blocks import settings as settings_screen
+from .blocks import dashboard
 from .blocks.balances import balances_block
+from .buttons import handle_button, menu_block
 from .db import close_db, init_scanner_db
-from .db.pairs import pairs_get_by_status
 from .health import scanner_health
 from .networks import refresh_networks
 from .settings import (
@@ -38,6 +36,7 @@ from .settings import (
     is_owner,
     setup,
 )
+from .text_input import handle_text_input
 from .w3 import close_w3
 
 try:
@@ -84,134 +83,13 @@ async def scanner_block(
 
     With brief=True it returns only the stats text, for a host's daily summary.
     """
-    return await scanner_screen.handle_block(context, brief=brief)
-
-
-async def home_block():
-    text = (
-        "🎯 *Pair Scanner*\n\n"
-        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
-        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}"
-        + (
-            f"\n_Capped at {MODE_NAMES[forced_mode()]} for this run_"
-            if forced_mode() is not None
-            else ""
-        )
-    )
-    return {
-        "text": text,
-        "parse_mode": "Markdown",
-        "reply_markup": InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton("🎯 Scanner", callback_data="scanner:home"),
-                    InlineKeyboardButton(
-                        "₿ Balances", callback_data="scanner:balances"
-                    ),
-                ],
-                [InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings")],
-                [InlineKeyboardButton("❌ Close", callback_data="cancel")],
-            ]
-        ),
-    }
-
-
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle a scanner button press. A host routes "scanner:" callbacks here."""
-    query = update.callback_query
-    data = query.data
-
-    if not is_owner(query.from_user.id):
-        await query.answer("This bot only answers its owner.", show_alert=True)
-        return
-
-    if data.startswith("scanner:settings"):
-        await settings_screen.handle_button(update, context)
-        return
-
-    await query.answer()
-
-    if data == "ignore":
-        return
-
-    if data == "cancel":
-        try:
-            await query.message.delete()
-        except BadRequest:
-            await query.edit_message_reply_markup(None)
-        return
-
-    if data.startswith("scanner:export:"):
-        table = data.split(":")[2]
-        if table not in ("pairs", "positions"):
-            return
-        rows = await pairs_get_by_status(None, table) or []
-        buf = io.StringIO()
-        if rows:
-            writer = csv.DictWriter(buf, fieldnames=list(rows[0]))
-            writer.writeheader()
-            writer.writerows(rows)
-        stamp = datetime.now().strftime("%Y-%m-%d")
-        await context.bot.send_document(
-            chat_id=query.message.chat_id,
-            document=io.BytesIO(buf.getvalue().encode("utf-8-sig")),
-            filename=f"{table}_{stamp}.csv",
-            caption=f"📤 {table.capitalize()}: {len(rows)} rows",
-        )
-        return
-
-    if data in ("scanner:menu", "scanner:home", "scanner:balances"):
-        if data == "scanner:menu":
-            block = await home_block()
-        elif data == "scanner:home":
-            block = await scanner_screen.handle_block(context)
-        else:
-            block = await balances_block()
-        await query.edit_message_text(
-            block["text"],
-            reply_markup=block.get("reply_markup"),
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
-        return
-
-    await scanner_screen.handle_button(update, context)
-
-
-async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle a typed reply the scanner asked for, such as a new setting value."""
-    if not is_owner(update.effective_user.id):
-        return
-    state = context.user_data.get("state") or ""
-    if not state.startswith("scanner:settings:"):
-        return
-    text = (update.message.text or "").strip()
-    try:
-        await update.message.delete()
-    except Exception:
-        pass
-    await settings_screen.handle_text(update, context, text)
-
-
-async def command_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id):
-        await update.message.reply_text("This bot only answers its owner.")
-        return
-    context.user_data.pop("state", None)
-    block = await home_block()
-    await update.message.reply_text(
-        block["text"], reply_markup=block["reply_markup"], parse_mode="Markdown"
-    )
-
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if any(n.lower() in str(context.error).lower() for n in NOISE):
-        return
-    sentry_sdk.capture_exception(context.error)
+    return await dashboard.handle_block(context, brief=brief)
 
 
 async def start_scanner_bot(
-    share_with: Application | None = None, env_prefix: str | None = None, **options
+    share_with: Application | None = None,
+    env_prefix: str | None = None,
+    **options: Any,
 ) -> Application:
     """Start the scanner and return the Application it runs on.
 
@@ -225,7 +103,7 @@ async def start_scanner_bot(
     if env_prefix is None:
         env_prefix = "" if share_with is None else "SCANNER_"
     setup(env_prefix, **options)
-    required = ("owner_id", "db_url", "wallet_address")
+    required: tuple[str, ...] = ("owner_id", "db_url", "wallet_address")
     if share_with is None:
         required = ("token", *required)
     missing = [
@@ -260,7 +138,7 @@ async def start_scanner_bot(
         return share_with
 
     application = Application.builder().token(SETTINGS.token).build()
-    application.add_handler(CommandHandler("start", command_start))
+    application.add_handler(CommandHandler("start", _command_start))
     application.add_handler(
         CallbackQueryHandler(handle_button, pattern=r"^(scanner:|cancel$|ignore$)")
     )
@@ -270,7 +148,7 @@ async def start_scanner_bot(
             handle_text_input,
         )
     )
-    application.add_error_handler(error_handler)
+    application.add_error_handler(_error_handler)
     if share_with is not None:
         application.bot_data["host"] = share_with
 
@@ -305,3 +183,20 @@ async def stop_scanner_bot() -> None:
         jobs.shares_host = False
     await close_w3()
     await close_db()
+
+
+async def _command_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_owner(update.effective_user.id):
+        await update.message.reply_text("This bot only answers its owner.")
+        return
+    context.user_data.pop("state", None)
+    block = await menu_block()
+    await update.message.reply_text(
+        block["text"], reply_markup=block["reply_markup"], parse_mode="Markdown"
+    )
+
+
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if any(n.lower() in str(context.error).lower() for n in NOISE):
+        return
+    sentry_sdk.capture_exception(context.error)

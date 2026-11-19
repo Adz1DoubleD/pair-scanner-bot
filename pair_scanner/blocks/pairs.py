@@ -1,4 +1,7 @@
+"""Screens for found pairs: lists, details, audit previews and manual buys."""
+
 from datetime import datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -23,7 +26,9 @@ from ..w3.audit import (
 )
 
 
-async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
+async def block_detail(
+    context: ContextTypes.DEFAULT_TYPE | None, row_id: int | str, table: str
+) -> dict[str, Any]:
     pair_data = await pairs_get_by_id(row_id, "pairs")
     prev_id, next_id = await get_neighbours(int(row_id), "pairs")
 
@@ -31,7 +36,7 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
         return {
             "text": "❌ Pair not found (it may have been cleared).",
             "reply_markup": InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🔙 Back", callback_data="scanner:home")]]
+                [[InlineKeyboardButton("🔙 Back", callback_data="scanner:dashboard")]]
             ),
         }
 
@@ -141,7 +146,9 @@ async def block_detail(context: ContextTypes.DEFAULT_TYPE, row_id, table):
     }
 
 
-async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
+async def block_list(
+    context: ContextTypes.DEFAULT_TYPE | None, status_arg: str
+) -> dict[str, Any]:
     parts = status_arg.split(":")
     status_input = parts[0].lower()
     current_page = int(parts[1]) if len(parts) > 1 else 0
@@ -149,7 +156,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     found_pairs = await pairs_get_by_status(status_input, "pairs")
     if not found_pairs:
         kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:home")]]
+            [[InlineKeyboardButton("🔙 Back ", callback_data="scanner:dashboard")]]
         )
         return {
             "text": f"No pairs found with status: {status_input.capitalize()}",
@@ -198,7 +205,7 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     for i in range(0, len(id_buttons), 5):
         keyboard.append(id_buttons[i : i + 5])
     keyboard.append(
-        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
+        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:dashboard")]
     )
 
     return {
@@ -208,7 +215,9 @@ async def block_list(context: ContextTypes.DEFAULT_TYPE, status_arg):
     }
 
 
-async def button_buy_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_buy_confirm(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     query = update.callback_query
     parts = query.data.split(":")
     row_id = parts[2]
@@ -235,7 +244,7 @@ async def button_buy_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
-async def button_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     parts = query.data.split(":")
     row_id = parts[2]
@@ -252,7 +261,7 @@ async def button_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def button_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     parts = query.data.split(":")
     row_id = parts[2]
@@ -284,7 +293,7 @@ async def button_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def button_rejected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_rejected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     counts = await pairs_get_rejection_counts()
     kb = []
@@ -302,7 +311,7 @@ async def button_rejected(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     kb.append(
-        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:home")]
+        [InlineKeyboardButton("🔙 Back to Scanner", callback_data="scanner:dashboard")]
     )
     kb.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 

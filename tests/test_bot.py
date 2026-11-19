@@ -9,6 +9,7 @@ import pytest
 
 import pair_scanner
 import pair_scanner.blocks.settings as settings_screen
+import pair_scanner.buttons as buttons
 from pair_scanner.settings import OPTIONS, SETTINGS
 
 OWNER = 1
@@ -82,9 +83,7 @@ async def test_close_deletes_the_message():
 @pytest.mark.asyncio
 async def test_export_sends_a_csv(monkeypatch):
     rows = [{"id": 1, "symbol": "AAA"}, {"id": 2, "symbol": "BBB"}]
-    monkeypatch.setattr(
-        pair_scanner, "pairs_get_by_status", AsyncMock(return_value=rows)
-    )
+    monkeypatch.setattr(buttons, "pairs_get_by_status", AsyncMock(return_value=rows))
     update, context = press("scanner:export:positions")
 
     await pair_scanner.handle_button(update, context)
@@ -93,17 +92,17 @@ async def test_export_sends_a_csv(monkeypatch):
     assert sent["filename"].startswith("positions_")
     lines = list(csv.reader(io.StringIO(sent["document"].read().decode("utf-8-sig"))))
     assert lines == [["id", "symbol"], ["1", "AAA"], ["2", "BBB"]]
-    pair_scanner.pairs_get_by_status.assert_awaited_once_with(None, "positions")
+    buttons.pairs_get_by_status.assert_awaited_once_with(None, "positions")
 
 
 @pytest.mark.asyncio
 async def test_export_refuses_other_tables(monkeypatch):
-    monkeypatch.setattr(pair_scanner, "pairs_get_by_status", AsyncMock())
+    monkeypatch.setattr(buttons, "pairs_get_by_status", AsyncMock())
     update, context = press("scanner:export:scanner_settings")
 
     await pair_scanner.handle_button(update, context)
 
-    pair_scanner.pairs_get_by_status.assert_not_awaited()
+    buttons.pairs_get_by_status.assert_not_awaited()
 
 
 async def type_value(text, user_data):
@@ -275,16 +274,16 @@ STATS = {
 
 @pytest.mark.asyncio
 async def test_dashboard_shows_each_monitor_with_its_mode(monkeypatch):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     OPTIONS.update(pairs_mode=1, strategy_mode=0)
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_get_stats",
         AsyncMock(return_value=(STATS, None, None, None)),
     )
 
-    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+    text = (await dashboard.handle_block(None, brief=True))["text"]
 
     assert "🤖 *Pairs* · 👀 Watch" in text
     assert "Would buy: 2" in text
@@ -293,14 +292,14 @@ async def test_dashboard_shows_each_monitor_with_its_mode(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dashboard_links_to_settings_and_back(monkeypatch):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_get_stats",
         AsyncMock(return_value=(STATS, None, None, None)),
     )
-    update, context = press("scanner:home")
+    update, context = press("scanner:dashboard")
     await pair_scanner.handle_button(update, context)
     dashboard = update.callback_query.edit_message_text.await_args.kwargs
     assert "scanner:settings" in callbacks(dashboard["reply_markup"])
@@ -308,7 +307,7 @@ async def test_dashboard_links_to_settings_and_back(monkeypatch):
     update, context = press("scanner:settings")
     await pair_scanner.handle_button(update, context)
     menu = update.callback_query.edit_message_text.await_args.kwargs
-    assert callbacks(menu["reply_markup"])[-1] == "scanner:home"
+    assert callbacks(menu["reply_markup"])[-1] == "scanner:dashboard"
 
 
 @pytest.mark.asyncio
@@ -316,18 +315,18 @@ async def test_dashboard_links_to_settings_and_back(monkeypatch):
     "what,clear_fn", [("archive", "clear_archive"), ("pairs", "pairs_reset_db")]
 )
 async def test_clearing_asks_first_then_clears(monkeypatch, what, clear_fn):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     cleared = AsyncMock()
     other = AsyncMock()
-    monkeypatch.setattr(scanner_screen, clear_fn, cleared)
+    monkeypatch.setattr(dashboard, clear_fn, cleared)
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_reset_db" if clear_fn == "clear_archive" else "clear_archive",
         other,
     )
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_get_stats",
         AsyncMock(return_value=({"total": 0}, None, None, None)),
     )
@@ -417,10 +416,10 @@ async def test_on_its_own_it_still_needs_a_token(start_env):
 async def test_the_health_button_shows_the_scanners_own_health(
     monkeypatch, alerts, header
 ):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "scanner_health",
         AsyncMock(return_value={"text": "🌐 *Web3*", "alerts": alerts}),
     )
@@ -434,7 +433,7 @@ async def test_the_health_button_shows_the_scanners_own_health(
     assert shown.args[0].endswith("🌐 *Web3*")
     assert callbacks(shown.kwargs["reply_markup"]) == [
         "scanner:health",
-        "scanner:home",
+        "scanner:dashboard",
         "cancel",
     ]
 
@@ -449,7 +448,7 @@ async def test_home_menu_shows_each_monitors_mode():
     args = update.callback_query.edit_message_text.await_args
     assert "🤖 Pairs: 💰 Live\n🧭 Strategy: 👀 Watch" in args.args[0]
     assert callbacks(args.kwargs["reply_markup"]) == [
-        "scanner:home",
+        "scanner:dashboard",
         "scanner:balances",
         "scanner:settings",
         "cancel",
@@ -570,13 +569,13 @@ async def test_startup_says_which_bot_and_mode(start_env, capsys):
 
 @pytest.mark.asyncio
 async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     OPTIONS.update(pairs_mode=2, strategy_mode=1)
     one = {**STATS["monitors"]["pairs"], "bought": 2, "closed": 2, "avg_pnl": 10.0}
     two = {**STATS["monitors"]["pairs"], "bought": 2, "closed": 1, "avg_pnl": -20.0}
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_get_stats",
         AsyncMock(
             return_value=(
@@ -588,7 +587,7 @@ async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
         ),
     )
 
-    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+    text = (await dashboard.handle_block(None, brief=True))["text"]
 
     total = text.split("📊 *Total*")[1]
     assert "Bought: 4" in total and "Sold: 3" in total
@@ -597,7 +596,7 @@ async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
-    import pair_scanner.blocks.scanner as scanner_screen
+    import pair_scanner.blocks.dashboard as dashboard
 
     OPTIONS.update(pairs_mode=1, strategy_mode=0)
     pairs = {
@@ -607,7 +606,7 @@ async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
         "would_wins": 3,
     }
     monkeypatch.setattr(
-        scanner_screen,
+        dashboard,
         "pairs_get_stats",
         AsyncMock(
             return_value=(
@@ -619,6 +618,6 @@ async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
         ),
     )
 
-    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+    text = (await dashboard.handle_block(None, brief=True))["text"]
 
     assert "Would have made: `+12.50%` (3/4 up)" in text

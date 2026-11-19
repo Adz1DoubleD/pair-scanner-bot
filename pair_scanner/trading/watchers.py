@@ -1,27 +1,29 @@
+"""Watching the factories for new pairs and reading their token details."""
+
 import asyncio
 
 import sentry_sdk
 from web3 import Web3
 from web3.exceptions import BadFunctionCallOutput, ContractLogicError
 
-from .db.pairs import (
+from ..db.pairs import (
     pairs_add,
     pairs_get_by_status,
     pairs_mark_as_invalid,
     pairs_update_metadata,
 )
-from .networks import (
+from ..networks import (
     AERO_POOL_CREATED_TOPIC,
     ERC20_ABI,
     NETWORKS,
     PAIR_CREATED_TOPIC,
     POOL_CREATED_TOPIC,
 )
-from .w3 import open_w3
-from .w3.audit import parse_pair_created
+from ..w3 import open_w3
+from ..w3.audit import parse_pair_created
 
 
-async def watch_new_pairs():
+async def watch_new_pairs() -> None:
     last_block = None
     network_name = "Base"
     conf = NETWORKS[network_name]
@@ -94,8 +96,8 @@ async def watch_new_pairs():
         await asyncio.sleep(2)
 
 
-async def watch_pair_metadata():
-    failures = {}
+async def watch_pair_metadata() -> None:
+    failures: dict[str, int] = {}
     while True:
         pending = await pairs_get_by_status(status="pending", table="pairs", limit=5)
 
@@ -105,7 +107,7 @@ async def watch_pair_metadata():
 
         for row in pending:
             target_addr = row["target_address"]
-            conf = NETWORKS.get(row["network"])
+            conf = NETWORKS[row["network"]]
             w3 = await open_w3(conf)
             try:
                 contract = w3.eth.contract(

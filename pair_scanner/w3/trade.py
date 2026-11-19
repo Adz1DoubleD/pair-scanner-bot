@@ -1,11 +1,15 @@
+"""Buying, selling, sale quotes and sell simulations."""
+
 import asyncio
 import time
+from typing import Any, cast
 
 import sentry_sdk
 from eth_abi import encode
 from eth_utils import keccak, to_hex
-from web3 import Web3
+from web3 import AsyncWeb3, Web3
 from web3.exceptions import TimeExhausted
+from web3.types import TxParams
 
 from ..networks import (
     AERO_ROUTER_ABI,
@@ -27,19 +31,21 @@ RECEIPT_TIMEOUT = 60
 
 
 class NonceManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = asyncio.Lock()
-        self._next = {}
+        self._next: dict[tuple[int, str], int] = {}
 
-    async def reserve(self, w3, address, chain_id):
+    async def reserve(self, w3: AsyncWeb3, address: str, chain_id: int) -> int:
         async with self._lock:
             key = (chain_id, address)
-            latest = await w3.eth.get_transaction_count(address, "pending")
+            latest = await w3.eth.get_transaction_count(
+                Web3.to_checksum_address(address), "pending"
+            )
             nonce = max(latest, self._next.get(key, 0))
             self._next[key] = nonce + 1
             return nonce
 
-    async def reset(self, address):
+    async def reset(self, address: str) -> None:
         async with self._lock:
             for key in [k for k in self._next if k[1] == address]:
                 del self._next[key]
@@ -49,8 +55,12 @@ nonce_manager = NonceManager()
 
 
 async def execute_buy(
-    conf: dict, token_addr, amount_eth, pair_addr=None, monitor="pairs"
-):
+    conf: dict[str, Any],
+    token_addr: str,
+    amount_eth: float,
+    pair_addr: str | None = None,
+    monitor: str = "pairs",
+) -> tuple[str | None, str | None]:
     if current_mode(monitor) == MODE_OFF:
         return None, OFF
     if current_mode(monitor) != MODE_LIVE or not SETTINGS.private_key:
@@ -71,7 +81,7 @@ async def execute_buy(
                 address=Web3.to_checksum_address(conf["aero_router"]),
                 abi=AERO_ROUTER_ABI,
             )
-            routes = [aero_route(conf, weth, token, stable)]
+            routes = [_aero_route(conf, weth, token, stable)]
             amounts_out = await router.functions.getAmountsOut(
                 amount_wei, routes
             ).call()
@@ -116,12 +126,15 @@ async def execute_buy(
             "chainId": conf["chain_id"],
         }
 
-        estimated_gas = await swap.estimate_gas(base_tx)
+        estimated_gas = await swap.estimate_gas(cast(TxParams, base_tx))
         tx = await swap.build_transaction(
-            {
-                **base_tx,
-                "gas": min(int(estimated_gas * gas_mult), gas_limit_token),
-            }
+            cast(
+                TxParams,
+                {
+                    **base_tx,
+                    "gas": min(int(estimated_gas * gas_mult), gas_limit_token),
+                },
+            )
         )
 
         signed = w3.eth.account.sign_transaction(tx, private_key)
@@ -145,8 +158,13 @@ async def execute_buy(
 
 
 async def execute_sell(
-    conf: dict, pos, skip_dust=False, half=False, quote=False, amount=None
-):
+    conf: dict[str, Any],
+    pos: dict[str, Any],
+    skip_dust: bool = False,
+    half: bool = False,
+    quote: bool = False,
+    amount: int | None = None,
+) -> tuple[Any, str | None]:
     if not quote and all(current_mode(m) == MODE_OFF for m in MONITORS):
         return None, OFF
     if not quote and not SETTINGS.private_key:
@@ -186,7 +204,7 @@ async def execute_sell(
         if stable is not None:
             router_addr = Web3.to_checksum_address(conf["aero_router"])
             router = w3.eth.contract(address=router_addr, abi=AERO_ROUTER_ABI)
-            routes = [aero_route(conf, token_addr, weth_addr, stable)]
+            routes = [_aero_route(conf, token_addr, weth_addr, stable)]
             eth_out = (await router.functions.getAmountsOut(balance, routes).call())[-1]
         elif fee is None:
             router_addr = Web3.to_checksum_address(conf["router"])
@@ -255,15 +273,18 @@ async def execute_sell(
             }
             est_app_gas = await token_contract.functions.approve(
                 router_addr, MAX_UINT256
-            ).estimate_gas(approve_base)
+            ).estimate_gas(cast(TxParams, approve_base))
 
             approve_tx = await token_contract.functions.approve(
                 router_addr, MAX_UINT256
             ).build_transaction(
-                {
-                    **approve_base,
-                    "gas": min(int(est_app_gas * gas_mult), gas_limit_token),
-                }
+                cast(
+                    TxParams,
+                    {
+                        **approve_base,
+                        "gas": min(int(est_app_gas * gas_mult), gas_limit_token),
+                    },
+                )
             )
 
             signed_app = w3.eth.account.sign_transaction(approve_tx, private_key)
@@ -284,7 +305,7 @@ async def execute_sell(
 
         for attempt in range(3):
             try:
-                estimated_sell_gas = await swap.estimate_gas(sell_base)
+                estimated_sell_gas = await swap.estimate_gas(cast(TxParams, sell_base))
                 break
             except Exception as est_e:
                 if (
@@ -300,10 +321,13 @@ async def execute_sell(
                 return None, est_e.args[0] if est_e.args else str(est_e)
 
         tx = await swap.build_transaction(
-            {
-                **sell_base,
-                "gas": min(int(estimated_sell_gas * gas_mult), gas_limit_token),
-            }
+            cast(
+                TxParams,
+                {
+                    **sell_base,
+                    "gas": min(int(estimated_sell_gas * gas_mult), gas_limit_token),
+                },
+            )
         )
 
         signed_sell = w3.eth.account.sign_transaction(tx, private_key)
@@ -322,12 +346,15 @@ async def execute_sell(
 
         try:
             await w3.eth.call(
-                {
-                    "from": tx["from"],
-                    "to": tx["to"],
-                    "data": tx["data"],
-                    "value": tx.get("value", 0),
-                },
+                cast(
+                    TxParams,
+                    {
+                        "from": tx["from"],
+                        "to": tx["to"],
+                        "data": tx["data"],
+                        "value": tx.get("value", 0),
+                    },
+                ),
                 receipt["blockNumber"],
             )
         except Exception as call_e:
@@ -342,7 +369,9 @@ async def execute_sell(
         return None, str(e)
 
 
-async def simulate_sell(conf, token_addr, pair_addr=None):
+async def simulate_sell(
+    conf: dict[str, Any], token_addr: str, pair_addr: str | None = None
+) -> bool | None:
     try:
         w3 = await open_w3(conf)
         weth_addr = Web3.to_checksum_address(conf["weth"])
@@ -367,7 +396,7 @@ async def simulate_sell(conf, token_addr, pair_addr=None):
         bal_key = None
         for slot in range(30):
             key = to_hex(keccak(encode(["address", "uint256"], [wallet, slot])))
-            ov = {token_addr: {"stateDiff": {key: big_hex}}}
+            ov: Any = {token_addr: {"stateDiff": {key: big_hex}}}
             try:
                 if (
                     await token.functions.balanceOf(wallet).call(state_override=ov)
@@ -398,7 +427,7 @@ async def simulate_sell(conf, token_addr, pair_addr=None):
         if bal_key is None or allow_key is None:
             return None
 
-        state_override = {
+        state_override: Any = {
             token_addr: {"stateDiff": {bal_key: big_hex, allow_key: big_hex}}
         }
 
@@ -407,7 +436,7 @@ async def simulate_sell(conf, token_addr, pair_addr=None):
             swap = router.functions.swapExactTokensForETHSupportingFeeOnTransferTokens(
                 amount_in,
                 0,
-                [aero_route(conf, token_addr, weth_addr, stable)],
+                [_aero_route(conf, token_addr, weth_addr, stable)],
                 wallet,
                 2**256 - 1,
             )
@@ -433,7 +462,9 @@ async def simulate_sell(conf, token_addr, pair_addr=None):
         return None
 
 
-def aero_route(conf, token_in, token_out, stable):
+def _aero_route(
+    conf: dict[str, Any], token_in: str, token_out: str, stable: bool
+) -> tuple[str, str, bool, str]:
     return (
         token_in,
         token_out,

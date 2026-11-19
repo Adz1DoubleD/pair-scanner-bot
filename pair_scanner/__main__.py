@@ -1,3 +1,5 @@
+"""Run the scanner on its own with `python -m pair_scanner`."""
+
 import asyncio
 import os
 
@@ -7,7 +9,7 @@ from dotenv import find_dotenv, load_dotenv
 from pair_scanner import start_scanner_bot, stop_scanner_bot
 
 
-async def main():
+async def main() -> None:
     load_dotenv(find_dotenv(usecwd=True))
     sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"))
     try:

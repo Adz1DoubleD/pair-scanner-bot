@@ -1,26 +1,31 @@
+"""The Strategy monitor: buys established pools with strong momentum."""
+
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import sentry_sdk
 from telegram.ext import ContextTypes
 
-from .constants import PAIR_LABELS
-from .db.pairs import pairs_get_by_status, pairs_position_add, pairs_strat_add
-from .helpers import escape_markdown
-from .networks import NETWORKS
-from .settings import MODE_LIVE, OPTIONS, current_mode
-from .w3.audit import (
+from ..constants import PAIR_LABELS
+from ..db.pairs import pairs_get_by_status, pairs_position_add, pairs_strat_add
+from ..helpers import escape_markdown
+from ..networks import NETWORKS
+from ..settings import MODE_LIVE, OPTIONS, current_mode
+from ..w3.audit import (
     check_honeypot,
     fetch_candidates,
     get_security_audit,
     get_token_metrics,
 )
-from .w3.tools import dex_name, fetch_eth_usd_price, trade_result
-from .w3.trade import execute_buy, simulate_sell
+from ..w3.tools import dex_name, fetch_eth_usd_price, trade_result
+from ..w3.trade import execute_buy, simulate_sell
 
-STRATEGY_RUN = {}
+STRATEGY_RUN: dict[str, Any] = {}
 
 
-async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
+async def run_strategy_monitor(
+    context: ContextTypes.DEFAULT_TYPE | None,
+) -> dict[str, Any]:
     s = OPTIONS
     conf = NETWORKS["Base"]
 

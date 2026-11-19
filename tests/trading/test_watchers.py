@@ -5,7 +5,7 @@ import pytest
 from hexbytes import HexBytes
 from web3.exceptions import BadFunctionCallOutput
 
-import pair_scanner.watchers as auto
+import pair_scanner.trading.watchers as auto
 from pair_scanner.networks import (
     AERO_POOL_CREATED_TOPIC,
     PAIR_CREATED_TOPIC,

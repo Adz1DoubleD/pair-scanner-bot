@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 import pytest
 from conftest import freeze_datetime, make_ctx, utc
 
-import pair_scanner.monitors as auto
-import pair_scanner.strategy as strategy
+import pair_scanner.trading.monitors as auto
+import pair_scanner.trading.strategy as strategy
 
 
 @pytest.fixture

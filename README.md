@@ -102,6 +102,8 @@ pre-commit install
 pytest
 ```
 
+`pre-commit` runs Ruff, mypy and a file-size check. See [CONTRIBUTING.md](CONTRIBUTING.md) for where things go and how releases work, and [SECURITY.md](SECURITY.md) to report a security problem privately.
+
 ## Licence
 
 [MIT](LICENSE).

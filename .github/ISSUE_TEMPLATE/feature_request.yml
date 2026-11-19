@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something new or a change to how the scanner works
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The problem or task, from the point of view of someone running the scanner.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you'd like it to work. For a new rule or setting, say what it checks and what happens when it fires.
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Could it spend or lose money?
+      description: If it changes when the scanner buys or sells, say how it behaves in each mode (Off, Watch, Live).

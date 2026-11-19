@@ -92,8 +92,8 @@ async def test_trade_result_adds_eth_from_an_earlier_half_sale(monkeypatch):
 async def test_dex_name_labels_aerodrome_pools(monkeypatch, stable, short, label):
     fee = AsyncMock()
     monkeypatch.setattr(w3_tools, "open_w3", AsyncMock(return_value=object()))
-    monkeypatch.setattr(w3_core, "aero_stable", AsyncMock(return_value=stable))
-    monkeypatch.setattr(w3_core, "pool_fee", fee)
+    monkeypatch.setattr(w3_core, "_aero_stable", AsyncMock(return_value=stable))
+    monkeypatch.setattr(w3_core, "_pool_fee", fee)
 
     assert await w3_tools.dex_name({}, SAMPLE_ADDR, short=short) == label
     fee.assert_not_awaited()
@@ -111,8 +111,8 @@ async def test_dex_name_labels_aerodrome_pools(monkeypatch, stable, short, label
 )
 async def test_dex_name_still_labels_uniswap_pools(monkeypatch, fee, short, label):
     monkeypatch.setattr(w3_tools, "open_w3", AsyncMock(return_value=object()))
-    monkeypatch.setattr(w3_core, "aero_stable", AsyncMock(return_value=None))
-    monkeypatch.setattr(w3_core, "pool_fee", AsyncMock(return_value=fee))
+    monkeypatch.setattr(w3_core, "_aero_stable", AsyncMock(return_value=None))
+    monkeypatch.setattr(w3_core, "_pool_fee", AsyncMock(return_value=fee))
 
     assert await w3_tools.dex_name({}, SAMPLE_ADDR, short=short) == label
 

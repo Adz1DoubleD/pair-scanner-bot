@@ -1,3 +1,5 @@
+"""The scanner's health check: RPCs, wallet, database and monitors."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -17,7 +19,7 @@ from .settings import (
     current_mode,
     forced_mode,
 )
-from .strategy import STRATEGY_RUN
+from .trading.strategy import STRATEGY_RUN
 from .w3 import get_w3_service
 from .w3.tools import fetch_network_bal
 
@@ -146,6 +148,7 @@ async def scanner_health() -> dict:
         ):
             alerts.append("🧭 *STRATEGY*: hasn't run on schedule")
 
+    forced = forced_mode()
     monitors = (
         [
             f"Pairs: {MODE_NAMES[current_mode('pairs')]}",
@@ -158,8 +161,8 @@ async def scanner_health() -> dict:
             ),
         ]
         + (
-            [f"Capped at {MODE_NAMES[forced_mode()]} for this run"]
-            if forced_mode() is not None
+            [f"Capped at {MODE_NAMES[forced]} for this run"]
+            if forced is not None
             else []
         )
         + [

@@ -1,5 +1,8 @@
+"""Checking tokens before buying: liquidity, security, honeypots and pool data."""
+
 import asyncio
 from decimal import Decimal, getcontext
+from typing import Any
 
 import httpx
 import sentry_sdk
@@ -29,12 +32,12 @@ getcontext().prec = 50
 
 
 async def audit_pair(
-    context: ContextTypes.DEFAULT_TYPE,
-    entries,
-    preview=False,
-    force_buy=False,
-    max_buys=None,
-):
+    context: ContextTypes.DEFAULT_TYPE | None,
+    entries: dict[str, Any] | list[dict[str, Any]],
+    preview: bool = False,
+    force_buy: bool = False,
+    max_buys: int | None = None,
+) -> Any:
     targets = [entries] if isinstance(entries, dict) else entries
     passed = 0
     bought = 0
@@ -50,9 +53,8 @@ async def audit_pair(
 
         symbol = escape_markdown(entry.get("symbol") or "???")
         try:
-            token_addr = entry.get("target_address")
-            network_key = entry.get("network", "Base")
-            conf = NETWORKS.get(network_key)
+            token_addr = entry["target_address"]
+            conf = NETWORKS[entry.get("network") or "Base"]
 
             min_liq_eth = Decimal(str(OPTIONS.get("min_liquidity_eth", 0.5)))
             min_liq = int(min_liq_eth * 10**18)
@@ -62,7 +64,7 @@ async def audit_pair(
 
             w3 = await open_w3(conf)
             pair = Web3.to_checksum_address(entry["pair_address"])
-            weth_addr = Web3.to_checksum_address(conf.get("weth"))
+            weth_addr = Web3.to_checksum_address(conf["weth"])
             weth_contract = w3.eth.contract(address=weth_addr, abi=WETH_ABI)
             balance = await weth_contract.functions.balanceOf(pair).call()
 
@@ -210,7 +212,7 @@ async def audit_pair(
     }
 
 
-async def check_honeypot(token_addr, chain_id=8453):
+async def check_honeypot(token_addr: str, chain_id: int = 8453) -> bool | None:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
@@ -233,12 +235,14 @@ async def check_honeypot(token_addr, chain_id=8453):
     return True if level < 20 else None
 
 
-async def fetch_candidates(pages=3):
+async def fetch_candidates(
+    pages: int = 3,
+) -> tuple[list[dict[str, Any]], str | None]:
     conf = NETWORKS["Base"]
     weth = conf["weth"].lower()
     base_url = GECKO_POOLS
 
-    by_token = {}
+    by_token: dict[str, dict[str, Any]] = {}
     error = None
     for dex in conf.get("gecko_dexes", ("uniswap-v2-base",)):
         url = (
@@ -295,7 +299,9 @@ async def fetch_candidates(pages=3):
     return list(by_token.values()), None
 
 
-async def get_security_audit(address: str, chain_id: int):
+async def get_security_audit(
+    address: str, chain_id: int
+) -> tuple[str, bool, dict[str, Any] | None]:
     url = f"https://api.gopluslabs.io/api/v1/token_security/{chain_id}?contract_addresses={address}"
 
     try:
@@ -305,7 +311,7 @@ async def get_security_audit(address: str, chain_id: int):
             if not data:
                 return "no-data", False, None
 
-            def flag(key):
+            def flag(key: str) -> bool:
                 return data.get(key) == "1"
 
             is_verified = flag("is_open_source")
@@ -392,7 +398,9 @@ async def get_security_audit(address: str, chain_id: int):
         return "no-data", False, None
 
 
-async def get_token_metrics(pair_data, network_conf):
+async def get_token_metrics(
+    pair_data: dict[str, Any], network_conf: dict[str, Any]
+) -> dict[str, Any]:
     stats = {
         "price_eth": "0.000000000000000000",
         "liq_eth": "0.000000000000000000",
@@ -463,7 +471,7 @@ async def get_token_metrics(pair_data, network_conf):
     return stats
 
 
-def parse_pair_created(log):
+def parse_pair_created(log: Any) -> tuple[str, str, str]:
     t0 = "0x" + log["topics"][1].hex()[-40:]
     t1 = "0x" + log["topics"][2].hex()[-40:]
     topic = "0x" + log["topics"][0].hex().removeprefix("0x")

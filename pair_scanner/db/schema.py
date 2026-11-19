@@ -1,3 +1,5 @@
+"""Creating the tables and loading the saved settings on start."""
+
 from ..settings import (
     OPTION_DEFAULTS,
     OPTIONS,
@@ -6,7 +8,7 @@ from ..settings import (
 from .core import db_session
 
 
-async def init_scanner_db():
+async def init_scanner_db() -> None:
     async with db_session() as cur:
         await cur.execute("SHOW TABLES LIKE 'pairs'")
         if not await cur.fetchone():

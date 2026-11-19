@@ -1,5 +1,8 @@
+"""Start-up settings, saved options and each monitor's mode."""
+
 import os
 from types import SimpleNamespace
+from typing import Any
 
 SECRETS = (
     "token",
@@ -26,7 +29,7 @@ ENV_VARS = {
 
 
 class Settings(SimpleNamespace):
-    def __repr__(self):
+    def __repr__(self) -> str:
         shown = {k: ("***" if k in SECRETS and v else v) for k, v in vars(self).items()}
         return f"Settings({shown})"
 
@@ -92,7 +95,7 @@ OPTION_DEFAULTS = {
 OPTIONS = dict(OPTION_DEFAULTS)
 
 
-def option_value(name, raw):
+def option_value(name: str, raw: Any) -> float:
     default = OPTION_DEFAULTS[name]
     try:
         return type(default)(float(raw))
@@ -100,7 +103,7 @@ def option_value(name, raw):
         return default
 
 
-def setup(env_prefix="", **options):
+def setup(env_prefix: str = "", **options: Any) -> None:
     unknown = set(options) - set(vars(SETTINGS)) | ({"env_prefix"} & set(options))
     if unknown:
         raise TypeError(f"Unknown scanner settings: {sorted(unknown)}")
@@ -113,20 +116,20 @@ def setup(env_prefix="", **options):
         setattr(SETTINGS, name, value)
 
 
-def forced_mode():
+def forced_mode() -> int | None:
     if str(SETTINGS.test_mode).lower() in ("1", "true", "yes", "on"):
         return MODE_OFF
     names = {"off": MODE_OFF, "watch": MODE_WATCH, "live": MODE_LIVE}
     return names.get(str(SETTINGS.mode or "").strip().lower())
 
 
-def current_mode(monitor):
+def current_mode(monitor: str) -> int:
     saved = int(OPTIONS.get(f"{monitor}_mode", MODE_OFF) or 0)
     forced = forced_mode()
     return saved if forced is None else min(saved, forced)
 
 
-def is_owner(user_id):
+def is_owner(user_id: Any) -> bool:
     try:
         return SETTINGS.owner_id is not None and int(user_id) == int(SETTINGS.owner_id)
     except (TypeError, ValueError):

@@ -173,9 +173,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     sells.append(f"📝 ${symbol} · no tokens left, closed · {pnl:+.2f}%")
                 else:
                     await pairs_mark_completed(token_addr, pnl=written_off)
-                    sells.append(
-                        f"☠️ ${symbol} · honeypot detected · {written_off:+g}%"
-                    )
+                    sells.append(f"☠️ ${symbol} · honeypot detected · {written_off:+g}%")
                 continue
 
             is_dead = (

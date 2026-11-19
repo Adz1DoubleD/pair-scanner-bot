@@ -1,4 +1,5 @@
 import asyncio
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -51,6 +52,31 @@ async def test_trade_result_counts_gas_and_the_last_unwrap(monkeypatch):
     assert result["eth_spent"] == pytest.approx(1.0750000001e-05)
     assert result["eth_received"] == pytest.approx(8.09999999e-06)
     assert result["pnl"] == -24.65
+
+
+@pytest.mark.asyncio
+async def test_trade_result_adds_eth_from_an_earlier_half_sale(monkeypatch):
+    sell_receipt = {
+        "gasUsed": 0,
+        "effectiveGasPrice": 0,
+        "logs": [weth_log(SAMPLE_ADDR, 4 * 10**12)],
+    }
+    w3 = SimpleNamespace(
+        eth=SimpleNamespace(
+            get_transaction=AsyncMock(return_value={"value": 10**13}),
+            get_transaction_receipt=AsyncMock(
+                side_effect=[{"gasUsed": 0, "effectiveGasPrice": 0}, sell_receipt]
+            ),
+        )
+    )
+    monkeypatch.setattr(w3_tools, "open_w3", AsyncMock(return_value=w3))
+
+    result = await w3_tools.trade_result(
+        {"weth": SAMPLE_ADDR}, "abc", "0xdef", earlier_eth=Decimal("0.000008")
+    )
+
+    assert result["eth_received"] == pytest.approx(1.2e-05)
+    assert result["pnl"] == 20.0
 
 
 @pytest.mark.asyncio

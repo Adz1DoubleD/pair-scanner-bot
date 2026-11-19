@@ -4,18 +4,21 @@ import pair_scanner.db as db
 from pair_scanner.settings import OPTION_DEFAULTS, OPTIONS
 
 
-def fake_db(make_cursor, tables=(), stored=(), host=None):
+def fake_db(make_cursor, tables=(), stored=(), host=None, columns=()):
     class Cursor(make_cursor):
         def __init__(self):
             super().__init__()
             self.tables = set(tables)
             self.stored = list(stored)
+            self.columns = set(columns)
 
         async def _execute(self, *args):
             await super()._execute(*args)
             sql = " ".join(args[0].split())
             if sql.startswith("CREATE TABLE"):
                 self.tables.add(sql.split()[2])
+                if "half_eth" in sql:
+                    self.columns.add("half_eth")
             if sql.startswith("INSERT INTO scanner_settings"):
                 self.stored.append({"name": args[1][0], "value": args[1][1]})
 
@@ -26,6 +29,8 @@ def fake_db(make_cursor, tables=(), stored=(), host=None):
             if sql.startswith("SHOW TABLES LIKE"):
                 name = params[0][0] if params else sql.split("'")[1]
                 return {"t": name} if name in self.tables else None
+            if sql.startswith("SHOW COLUMNS FROM positions LIKE"):
+                return {"f": 1} if sql.split("'")[1] in self.columns else None
             if sql.startswith("SELECT * FROM"):
                 return host
             return None
@@ -151,3 +156,18 @@ async def test_saved_monitor_modes_are_not_migrated_again(make_cursor, patch_ses
 
     assert OPTIONS["pairs_mode"] == 0
     assert not any(c[0].startswith(("INSERT", "DELETE")) for c in cur.calls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tables,altered", [((), False), (("pairs", "positions"), True)]
+)
+async def test_older_positions_tables_get_the_half_sale_column(
+    make_cursor, patch_session, tables, altered
+):
+    cur = patch_session(db.schema, fake_db(make_cursor, tables=tables))
+
+    await db.init_scanner_db()
+
+    alters = [c[0] for c in cur.calls if c[0].startswith("ALTER TABLE positions")]
+    assert bool(alters) is altered

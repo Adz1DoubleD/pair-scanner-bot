@@ -45,6 +45,7 @@ async def init_scanner_db():
                     sell_tx VARCHAR(66) DEFAULT NULL,
                     eth_spent DECIMAL(36, 18) DEFAULT NULL,
                     eth_received DECIMAL(36, 18) DEFAULT NULL,
+                    half_eth DECIMAL(36, 18) DEFAULT NULL,
                     decimals INT DEFAULT 18,
                     entry_price_eth DECIMAL(36, 18),
                     entry_liq_eth DECIMAL(36, 18),
@@ -68,6 +69,13 @@ async def init_scanner_db():
                     INDEX (pnl_percent)
                 )
             """)
+
+        await cur.execute("SHOW COLUMNS FROM positions LIKE 'half_eth'")
+        if not await cur.fetchone():
+            await cur.execute(
+                "ALTER TABLE positions ADD COLUMN half_eth DECIMAL(36, 18) "
+                "DEFAULT NULL AFTER eth_received"
+            )
 
         await cur.execute("SHOW TABLES LIKE 'scanner_settings'")
         if not await cur.fetchone():

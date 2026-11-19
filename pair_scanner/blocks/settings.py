@@ -49,6 +49,7 @@ GROUPS = {
         "📉 Selling",
         [
             "take_profit_percent",
+            "half_sell_percent",
             "stop_loss_percent",
             "trailing_stop_percent",
             "trailing_start_percent",
@@ -88,6 +89,7 @@ LABELS = {
     "strat_min_liq_usd": ("Min Liquidity", "USD"),
     "strat_min_momentum_h1": ("Min 1h Momentum", "%"),
     "take_profit_percent": ("Take Profit", "%"),
+    "half_sell_percent": ("Sell Half At", "%"),
     "stop_loss_percent": ("Stop Loss", "%"),
     "trailing_stop_percent": ("Trailing Stop", "%"),
     "trailing_start_percent": ("Trailing Stop From", "%"),
@@ -116,6 +118,7 @@ LIMITS = {
     "strat_min_liq_usd": (0, None),
     "strat_min_momentum_h1": (0, 100),
     "take_profit_percent": (1, 1000),
+    "half_sell_percent": (0, 1000),
     "stop_loss_percent": (1, 100),
     "trailing_stop_percent": (1, 100),
     "trailing_start_percent": (1, 1000),

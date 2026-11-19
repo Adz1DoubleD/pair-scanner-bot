@@ -63,12 +63,25 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
     )
     stat_text = f"*{title}*\n\n"
-    eth_pnl, eth_counted = 0.0, 0
-    for monitor, heading in (("pairs", "🤖 *Pairs*"), ("strategy", "🧭 *Strategy*")):
-        m = stats["monitors"][monitor]
-        mode = current_mode(monitor)
-        if mode == MODE_OFF and not (m["found"] or m["bought"] or m["closed"]):
-            continue
+    shown = [
+        (f"{heading} · {MODE_NAMES[current_mode(monitor)]}", stats["monitors"][monitor])
+        for monitor, heading in (("pairs", "🤖 *Pairs*"), ("strategy", "🧭 *Strategy*"))
+        if current_mode(monitor) != MODE_OFF
+        or any(stats["monitors"][monitor][k] for k in ("found", "bought", "closed"))
+    ]
+    if len(shown) == 2:
+        a, b = shown[0][1], shown[1][1]
+        total = {k: a[k] + b[k] for k in a}
+        total["avg_pnl"] = (
+            (a["avg_pnl"] * a["closed"] + b["avg_pnl"] * b["closed"]) / total["closed"]
+            if total["closed"]
+            else 0.0
+        )
+        shown.append(("📊 *Total*", total))
+    eth_usd = (
+        await fetch_eth_usd_price() if any(m["eth_counted"] for _, m in shown) else 0
+    )
+    for heading, m in shown:
         lines = [f"Found: {m['found']}", f"Rejected: {m['rejected']}"]
         if m["watched"]:
             lines.append(f"Would buy: {m['watched']}")
@@ -79,21 +92,21 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
                 f"Win Rate: `{m['wins'] / m['closed'] * 100:.0f}%` "
                 f"({m['wins']}/{m['closed']})",
             ]
-        eth_pnl += m["eth_pnl"]
-        eth_counted += m["eth_counted"]
+        if m["eth_counted"]:
+            usd = m["eth_pnl"] * eth_usd
+            lines.append(
+                f"P&L: `{m['eth_pnl']:+.6f} ETH`"
+                + (f" ({'-' if usd < 0 else '+'}${abs(usd):.2f})" if usd else "")
+            )
         stat_text += (
-            f"{heading} · {MODE_NAMES[mode]}\n"
+            f"{heading}\n"
             + "\n".join(
                 f" {'└' if i == len(lines) - 1 else '├'} {line}"
                 for i, line in enumerate(lines)
             )
             + "\n\n"
         )
-    if eth_counted:
-        usd = eth_pnl * await fetch_eth_usd_price()
-        usd_str = f" ({'-' if usd < 0 else '+'}${abs(usd):.2f})" if usd else ""
-        stat_text += f"💰 *P&L*: `{eth_pnl:+.6f} ETH`{usd_str}\n\n"
-    if stat_text == f"*{title}*\n\n":
+    if not shown:
         stat_text += f"Both monitors are {MODE_NAMES[MODE_OFF]}.\n\n"
 
     if brief:

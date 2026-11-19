@@ -47,7 +47,7 @@ pip install pair-scanner-bot
 python -m pair_scanner
 ```
 
-Run it from a folder with a `.env` file holding the settings below. [.env.example](.env.example) is a starting point. To find your Telegram user ID for `OWNER_ID`, message [@userinfobot](https://t.me/userinfobot). Then send `/start` to your bot.
+Run it from a folder with a `.env` file holding the settings below. [.env.example](.env.example) is a starting point. To find your Telegram user ID for `OWNER_ID`, message [@userinfobot](https://t.me/userinfobot). Then send `/start` to your bot to open the dashboard.
 
 To look around before anything runs, set `MODE=off` first: both monitors start ⏸️ Off for that run, whatever modes are saved.
 

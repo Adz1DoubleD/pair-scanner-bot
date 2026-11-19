@@ -12,39 +12,7 @@ from telegram.ext import ContextTypes
 from .blocks import dashboard, settings
 from .blocks.balances import balances_block
 from .db.pairs import pairs_get_by_status
-from .settings import MODE_NAMES, current_mode, forced_mode, is_owner
-
-
-async def menu_block() -> dict[str, Any]:
-    forced = forced_mode()
-    text = (
-        "🎯 *Pair Scanner*\n\n"
-        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
-        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}"
-        + (
-            f"\n_Capped at {MODE_NAMES[forced]} for this run_"
-            if forced is not None
-            else ""
-        )
-    )
-    return {
-        "text": text,
-        "parse_mode": "Markdown",
-        "reply_markup": InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        "🎯 Scanner", callback_data="scanner:dashboard"
-                    ),
-                    InlineKeyboardButton(
-                        "₿ Balances", callback_data="scanner:balances"
-                    ),
-                ],
-                [InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings")],
-                [InlineKeyboardButton("❌ Close", callback_data="cancel")],
-            ]
-        ),
-    }
+from .settings import is_owner
 
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -91,13 +59,23 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    if data in ("scanner:menu", "scanner:dashboard", "scanner:balances"):
-        if data == "scanner:menu":
-            block = await menu_block()
-        elif data == "scanner:dashboard":
-            block = await dashboard.handle_block(context)
+    if data in ("scanner:dashboard", "scanner:balances"):
+        if data == "scanner:dashboard":
+            block: dict[str, Any] = await dashboard.handle_block(context)
         else:
             block = await balances_block()
+            keyboard = list(block["reply_markup"].inline_keyboard)
+            block["reply_markup"] = InlineKeyboardMarkup(
+                keyboard[:-1]
+                + [
+                    [
+                        InlineKeyboardButton(
+                            "🔙 Back to Scanner", callback_data="scanner:dashboard"
+                        )
+                    ]
+                ]
+                + keyboard[-1:]
+            )
         await query.edit_message_text(
             block["text"],
             reply_markup=block.get("reply_markup"),

@@ -57,7 +57,8 @@ def saved(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data", ["scanner:menu", "scanner:sell_all", "scanner:settings:t:trading_enabled"]
+    "data",
+    ["scanner:dashboard", "scanner:sell_all", "scanner:settings:t:trading_enabled"],
 )
 async def test_strangers_are_turned_away(data, saved):
     update, context = press(data, user=STRANGER)
@@ -231,7 +232,7 @@ def test_the_bot_listens_for_its_buttons_close_and_blank():
 
     source = Path(pair_scanner.__file__).read_text(encoding="utf-8")
     pattern = re.search(r'pattern=r"(.+?)"', source).group(1)
-    for data in ("scanner:menu", "cancel", "ignore"):
+    for data in ("scanner:dashboard", "cancel", "ignore"):
         assert re.match(pattern, data)
     for data in ("cancelled", "back:scanner", "troubleshooter:home"):
         assert not re.match(pattern, data)
@@ -439,13 +440,24 @@ async def test_the_health_button_shows_the_scanners_own_health(
 
 
 @pytest.mark.asyncio
-async def test_home_menu_shows_each_monitors_mode():
+async def test_start_opens_the_dashboard(monkeypatch):
+    import pair_scanner.blocks.dashboard as dashboard
+
     OPTIONS.update(pairs_mode=2, strategy_mode=1)
-    update, context = press("scanner:menu")
+    monkeypatch.setattr(
+        dashboard,
+        "pairs_get_stats",
+        AsyncMock(return_value=({"total": 0}, None, None, None)),
+    )
+    reply = AsyncMock()
+    update = SimpleNamespace(
+        effective_user=SimpleNamespace(id=OWNER),
+        message=SimpleNamespace(reply_text=reply),
+    )
 
-    await pair_scanner.handle_button(update, context)
+    await pair_scanner._command_start(update, SimpleNamespace(user_data={}))
 
-    args = update.callback_query.edit_message_text.await_args
+    args = reply.await_args
     assert "🤖 Pairs: 💰 Live\n🧭 Strategy: 👀 Watch" in args.args[0]
     assert callbacks(args.kwargs["reply_markup"]) == [
         "scanner:dashboard",
@@ -453,6 +465,33 @@ async def test_home_menu_shows_each_monitors_mode():
         "scanner:settings",
         "cancel",
     ]
+
+
+@pytest.mark.asyncio
+async def test_balances_lead_back_to_the_dashboard(monkeypatch):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    monkeypatch.setattr(
+        buttons,
+        "balances_block",
+        AsyncMock(
+            return_value={
+                "text": "₿ balances",
+                "reply_markup": InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("🔄", callback_data="scanner:balances")],
+                        [InlineKeyboardButton("❌", callback_data="cancel")],
+                    ]
+                ),
+            }
+        ),
+    )
+    update, context = press("scanner:balances")
+
+    await pair_scanner.handle_button(update, context)
+
+    markup = update.callback_query.edit_message_text.await_args.kwargs["reply_markup"]
+    assert callbacks(markup) == ["scanner:balances", "scanner:dashboard", "cancel"]
 
 
 @pytest.mark.asyncio

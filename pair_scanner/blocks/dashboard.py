@@ -254,13 +254,24 @@ async def _block(
         if brief:
             return {"text": ""}
         return {
-            "text": "🎯 *Pairs Dashboard*\n\n📡 No pairs found yet.",
+            "text": "🤖 *Token Scanner*\n\n"
+            f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
+            f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}\n\n"
+            "📡 No pairs found yet.",
             "reply_markup": InlineKeyboardMarkup(
                 [
                     [
                         InlineKeyboardButton(
                             "🔄 Refresh", callback_data="scanner:dashboard"
                         )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "₿ Balances", callback_data="scanner:balances"
+                        ),
+                        InlineKeyboardButton(
+                            "⚙️ Settings", callback_data="scanner:settings"
+                        ),
                     ],
                     [InlineKeyboardButton("❌ Close", callback_data="cancel")],
                 ]
@@ -397,17 +408,18 @@ async def _block(
 
     keyboard.append(
         [
-            InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive"),
+            InlineKeyboardButton("₿ Balances", callback_data="scanner:balances"),
             InlineKeyboardButton("⚙️ Settings", callback_data="scanner:settings"),
         ]
     )
     keyboard.append(
         [
+            InlineKeyboardButton("🗂 Archive", callback_data="scanner:archive"),
             InlineKeyboardButton("🩺 Health", callback_data="scanner:health"),
-            InlineKeyboardButton(
-                "💼 Sell All", callback_data="scanner:sell_all_confirm"
-            ),
         ]
+    )
+    keyboard.append(
+        [InlineKeyboardButton("💼 Sell All", callback_data="scanner:sell_all_confirm")]
     )
     keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel")])
 

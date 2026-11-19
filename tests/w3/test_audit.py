@@ -2,13 +2,13 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-from conftest import WETH, addr_word, base_urls, try_urls
 from eth_utils import keccak, to_hex
 from hexbytes import HexBytes
 from web3 import Web3
 
 import pair_scanner.w3 as w3_core
 import pair_scanner.w3.audit as w3_audit
+from conftest import WETH, addr_word, base_urls, try_urls
 from pair_scanner.networks import (
     AERO_POOL_CREATED_TOPIC,
     NETWORKS,

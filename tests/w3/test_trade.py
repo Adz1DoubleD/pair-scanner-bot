@@ -2,6 +2,12 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from eth_abi import decode
+from hexbytes import HexBytes
+from web3 import Account, AsyncHTTPProvider, AsyncWeb3, Web3
+from web3.exceptions import BadFunctionCallOutput, ContractLogicError
+
+import pair_scanner.w3.trade as w3_trade
 from conftest import (
     AERO_FACTORY,
     TEST_KEY,
@@ -10,12 +16,6 @@ from conftest import (
     contract_at,
     try_urls,
 )
-from eth_abi import decode
-from hexbytes import HexBytes
-from web3 import Account, AsyncHTTPProvider, AsyncWeb3, Web3
-from web3.exceptions import BadFunctionCallOutput, ContractLogicError
-
-import pair_scanner.w3.trade as w3_trade
 from pair_scanner.networks import (
     AERO_ROUTER_ABI,
     ERC20_ABI,

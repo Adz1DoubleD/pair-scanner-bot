@@ -3,6 +3,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from eth_abi import encode
+from eth_utils import keccak, to_hex
+from web3 import Account, AsyncHTTPProvider, AsyncWeb3, Web3
+from web3.exceptions import BadFunctionCallOutput, ContractLogicError
+
+import pair_scanner.w3 as w3_core
 from conftest import (
     AERO_FACTORY,
     SAMPLE_ADDR,
@@ -12,12 +18,6 @@ from conftest import (
     contract_at,
     try_urls,
 )
-from eth_abi import encode
-from eth_utils import keccak, to_hex
-from web3 import Account, AsyncHTTPProvider, AsyncWeb3, Web3
-from web3.exceptions import BadFunctionCallOutput, ContractLogicError
-
-import pair_scanner.w3 as w3_core
 from pair_scanner.networks import (
     AERO_POOL_ABI,
     CHAINLINK_ABI,

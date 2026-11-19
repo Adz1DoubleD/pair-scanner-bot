@@ -14,7 +14,7 @@ repos:
         types: [python]
       - id: mypy
         name: mypy
-        entry: mypy pair_scanner
+        entry: mypy src
         language: system
         types: [python]
         pass_filenames: false

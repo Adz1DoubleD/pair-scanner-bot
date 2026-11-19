@@ -23,7 +23,9 @@ Tests mock the database, the chain and Telegram, so they need no `.env`, network
 
 ## Where things go
 
-- `pair_scanner/__init__.py`: the public API (`__all__`) and starting the bot.
+The package lives in `src/pair_scanner/`, and the tests run against the installed copy, so install it with `pip install -e ".[dev]"` first.
+
+- `__init__.py`: the public API (`__all__`) and starting the bot.
 - `buttons.py` and `text_input.py`: routing button presses and typed replies.
 - `blocks/`: the Telegram screens. They edit the current message and give every screen a 🔙 Back button.
 - `trading/`: the Pairs, Strategy and position monitors, and the factory watchers.

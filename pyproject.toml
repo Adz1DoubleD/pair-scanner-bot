@@ -46,6 +46,7 @@ Homepage = "https://github.com/Adz1DoubleD/pair-scanner-bot"
 Issues = "https://github.com/Adz1DoubleD/pair-scanner-bot/issues"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["pair_scanner*"]
 
 [tool.setuptools.package-data]

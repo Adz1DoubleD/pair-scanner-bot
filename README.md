@@ -13,15 +13,16 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Finds new pairs.** It watches the Uniswap V2, Uniswap V3 and Aerodrome factories on Base for new pools paired with WETH.
 - **Audits them.** It checks liquidity, the liquidity-to-market-cap ratio, locked LP, whether one wallet holds too much of the supply, taxes, contract security (GoPlus), honeypot risk (honeypot.is), and whether a sale actually goes through (simulated against the chain).
 - **Buys what passes,** when the monitor is on 💰 Live, up to your limits.
+- **Judges every position by what a sale would really return.** Each minute it asks the exchange what selling would bring back and compares that with what the buy actually cost, so a thin pool's price can't fake a gain. If no quote comes back it falls back to the pool price.
 - **Sells half** once a position is up by `half_sell_percent` (30% by default; 0 turns it off). The rest then sells at break-even instead of the stop-loss, so a rug after that costs far less.
 - **Sells** on take-profit, stop-loss, trailing stop (it starts once a position is up by `trailing_start_percent`, 20% by default, so gains are protected before take-profit), rug (liquidity drop), dead token, or a honeypot appearing later.
-- **Strategy monitor (optional):** buys established pools with strong one-hour momentum.
+- **Strategy monitor (optional):** buys established pools with strong one-hour momentum. It skips pools younger than `strat_min_pool_age_hours` (24 by default) and checks the pool's real liquidity on-chain before buying.
 - **Alerts** for every buy, sell, would-buy and health problem. Sells come in two groups, 💰 Sell and 🚨 Lost. Buys, profit sells and loss sells each have their own switch in ⚙️ Settings → Monitors & Alerts. Would-buys, failed buys and health alerts are always sent.
-- **Screens:** the scanner dashboard, pairs, positions, wallet balances (on Base and Ethereum), health, settings and CSV exports of every pair and position for your own records.
+- **Screens:** the scanner dashboard (`/start` opens it), pairs, positions, wallet balances (on Base and Ethereum), health, settings and CSV exports of every pair and position for your own records.
 
 ## Safety
 
-- **A mode for each monitor, set in ⚙️ Settings → Monitors & Alerts.** The 🤖 Pairs Monitor and the 🧭 Strategy Monitor each pick one of three: ⏸️ **Off**: it doesn't run. 👀 **Watch**: it finds and checks tokens and tells you what it *would* buy, but never buys. 💰 **Live**: it buys. So one can buy while the other only watches. A new install starts with Pairs on Watch and Strategy Off. Switching to Live asks you to confirm, and needs `PRIVATE_KEY`.
+- **A mode for each monitor, set in ⚙️ Settings → Monitors & Alerts.** The 🤖 Pairs Monitor and the 🧭 Strategy Monitor each pick one of three: ⏸️ **Off**: it doesn't run. 👀 **Watch**: it finds and checks tokens and tells you what it *would* buy, but never buys. Each pick is then followed as a pretend position with the same sell rules, so you get **👀 Would have sold** alerts and a **Would have made** figure on the dashboard, and can see whether Live would have paid before spending anything. 💰 **Live**: it buys. So one can buy while the other only watches. A new install starts with Pairs on Watch and Strategy Off. Switching to Live asks you to confirm, and needs `PRIVATE_KEY`.
 - **Owner only.** The bot answers only `OWNER_ID`.
 - **Your key stays yours.** It's read from your environment, used to sign your own transactions, and never printed, stored or sent anywhere else.
 - **Cautious defaults:** 0.001 ETH per buy, at most 3 positions, 5% slippage, and the strategy off.

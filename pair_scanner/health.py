@@ -1,10 +1,12 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import sentry_sdk
 
 from .db.core import db_session
 from .db.pairs import db_total_mb, pairs_get_by_status, pairs_get_stats
+from .monitors import STRATEGY_RUN
 from .networks import NETWORKS
 from .settings import (
     MODE_LIVE,
@@ -128,10 +130,27 @@ async def scanner_health():
                     f"📉 *LOW PAIRS PULSE*: no new pairs for {hours}h {minutes}m"
                 )
 
+    if current_mode("strategy") != MODE_OFF:
+        every = timedelta(minutes=float(OPTIONS.get("strategy_monitor_interval") or 60))
+        if STRATEGY_RUN.get("error"):
+            alerts.append(f"🧭 *STRATEGY*: pool list failed ({STRATEGY_RUN['error']})")
+        elif STRATEGY_RUN and not STRATEGY_RUN.get("fetched"):
+            alerts.append("🧭 *STRATEGY*: the pool list came back empty")
+        elif (
+            datetime.now(timezone.utc) - STRATEGY_RUN.get("at", STARTED_AT) >= 2 * every
+        ):
+            alerts.append("🧭 *STRATEGY*: hasn't run on schedule")
+
     monitors = (
         [
             f"Pairs: {MODE_NAMES[current_mode('pairs')]}",
-            f"Strategy: {MODE_NAMES[current_mode('strategy')]}",
+            f"Strategy: {MODE_NAMES[current_mode('strategy')]}"
+            + (
+                f" · last run {STRATEGY_RUN['at'].astimezone(ZoneInfo(SETTINGS.timezone)):%H:%M}, "
+                f"{STRATEGY_RUN['fetched']} pools"
+                if STRATEGY_RUN
+                else ""
+            ),
         ]
         + (
             [f"Capped at {MODE_NAMES[forced_mode()]} for this run"]

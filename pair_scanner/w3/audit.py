@@ -269,6 +269,7 @@ async def fetch_candidates(pages=3):
                     "symbol": (attr.get("name") or "???").split(" / ")[0],
                     "liq_usd": liq_usd,
                     "change_h1": change_h1,
+                    "created_at": attr.get("pool_created_at"),
                 }
 
             if not pools:

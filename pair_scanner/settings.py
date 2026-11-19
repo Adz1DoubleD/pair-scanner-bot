@@ -73,6 +73,7 @@ OPTION_DEFAULTS = {
     "strategy_monitor_interval": 60,
     "strat_min_liq_usd": 250000.0,
     "strat_min_momentum_h1": 3.0,
+    "strat_min_pool_age_hours": 24.0,
     "sell_monitor_interval": 1,
     "take_profit_percent": 100,
     "half_sell_percent": 30.0,

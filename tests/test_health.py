@@ -25,6 +25,11 @@ def chain(monkeypatch, database):
     monkeypatch.setattr(
         health, "STARTED_AT", datetime.now(timezone.utc) - timedelta(days=1)
     )
+    monkeypatch.setattr(
+        health,
+        "STRATEGY_RUN",
+        {"at": datetime.now(timezone.utc), "fetched": 120, "error": None},
+    )
 
     def setup(rpcs=((["A 🟢 5ms"], []),), balances=(0.5,), stats=None):
         monkeypatch.setattr(
@@ -199,3 +204,40 @@ async def test_the_database_is_checked(chain, database, kwargs, line, alert):
         assert any(alert in a for a in report["alerts"])
     else:
         assert report["alerts"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "run,alert",
+    [
+        ({"at": "now", "fetched": 120, "error": None}, None),
+        (
+            {"at": "now", "fetched": 0, "error": "fetch failed (status 429)"},
+            "pool list failed (fetch failed (status 429))",
+        ),
+        ({"at": "now", "fetched": 0, "error": None}, "the pool list came back empty"),
+        ({"at": "old", "fetched": 120, "error": None}, "hasn't run on schedule"),
+        ({}, "hasn't run on schedule"),
+    ],
+    ids=["fine", "fetch-failed", "empty", "stale", "never-ran"],
+)
+async def test_the_strategy_side_is_checked_too(chain, monkeypatch, run, alert):
+    now = datetime.now(timezone.utc)
+    if run:
+        run = {**run, "at": now if run["at"] == "now" else now - timedelta(hours=3)}
+    monkeypatch.setattr(health, "STRATEGY_RUN", run)
+    OPTIONS.update(strategy_mode=1, strategy_monitor_interval=60)
+    chain()
+
+    alerts = [a for a in (await health.scanner_health())["alerts"] if "STRATEGY" in a]
+
+    assert alerts == ([f"🧭 *STRATEGY*: {alert}"] if alert else [])
+
+
+@pytest.mark.asyncio
+async def test_a_strategy_that_is_off_is_not_checked(chain, monkeypatch):
+    monkeypatch.setattr(health, "STRATEGY_RUN", {})
+    OPTIONS["strategy_mode"] = 0
+    chain()
+
+    assert not any("STRATEGY" in a for a in (await health.scanner_health())["alerts"])

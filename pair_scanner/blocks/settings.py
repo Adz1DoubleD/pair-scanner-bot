@@ -45,7 +45,10 @@ GROUPS = {
             "max_audits",
         ],
     ),
-    "strategy": ("🧭 Strategy", ["strat_min_liq_usd", "strat_min_momentum_h1"]),
+    "strategy": (
+        "🧭 Strategy",
+        ["strat_min_liq_usd", "strat_min_momentum_h1", "strat_min_pool_age_hours"],
+    ),
     "selling": (
         "📉 Selling",
         [
@@ -90,6 +93,7 @@ LABELS = {
     "max_audits": ("Max Retries", ""),
     "strat_min_liq_usd": ("Min Liquidity", "USD"),
     "strat_min_momentum_h1": ("Min 1h Momentum", "%"),
+    "strat_min_pool_age_hours": ("Min Pool Age", "h"),
     "take_profit_percent": ("Take Profit", "%"),
     "half_sell_percent": ("Sell Half At", "%"),
     "stop_loss_percent": ("Stop Loss", "%"),
@@ -119,6 +123,7 @@ LIMITS = {
     "max_audits": (1, 100),
     "strat_min_liq_usd": (0, None),
     "strat_min_momentum_h1": (0, 100),
+    "strat_min_pool_age_hours": (0, 8760),
     "take_profit_percent": (1, 1000),
     "half_sell_percent": (0, 1000),
     "stop_loss_percent": (1, 100),

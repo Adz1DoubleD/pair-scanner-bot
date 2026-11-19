@@ -13,7 +13,7 @@ from ..db.pairs import (
 from ..health import scanner_health
 from ..helpers import escape_markdown, format_timestamp
 from ..monitors import run_sell_all, run_strategy_monitor
-from ..settings import SETTINGS
+from ..settings import MODE_NAMES, SETTINGS, current_mode
 from ..w3.tools import fetch_eth_usd_price
 from . import pairs, positions
 
@@ -63,7 +63,7 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
     )
     stat_text = (
-        f"*{title}*\n"
+        f"*{title}* · {MODE_NAMES[current_mode()]}\n"
         f" ├ Found: {stats.get('pulse_total', 0)}\n"
         f" ├ Rejected: {stats.get('pulse_rejected', 0)}\n"
         f" ├ Bought: {stats.get('pulse_passed', 0)}\n"

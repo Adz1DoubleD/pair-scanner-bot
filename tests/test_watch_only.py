@@ -17,7 +17,7 @@ PAIR = {
 
 @pytest.fixture
 def watch_only():
-    OPTIONS["trading_enabled"] = 0
+    OPTIONS["mode"] = 1
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_a_manual_buy_says_trading_is_off(passing_audit, watch_only):
 
     buy.assert_not_awaited()
     marks.assert_not_awaited()
-    assert "trading is off" in result["text"]
+    assert "the scanner is in Watch" in result["text"]
 
 
 @pytest.mark.asyncio
@@ -194,7 +194,7 @@ async def test_with_trading_on_watched_tokens_can_be_bought(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["execute_buy", "execute_sell"])
 async def test_test_mode_refuses_every_trade(monkeypatch, name):
-    OPTIONS["trading_enabled"] = 1
+    OPTIONS["mode"] = 2
     monkeypatch.setattr(SETTINGS, "test_mode", True)
     monkeypatch.setattr(SETTINGS, "private_key", "0x" + "11" * 32)
     opened = AsyncMock()
@@ -203,7 +203,7 @@ async def test_test_mode_refuses_every_trade(monkeypatch, name):
     args = (PAIR["target_address"], 1) if name == "execute_buy" else (dict(PAIR),)
     tx, error = await getattr(trade, name)({"chain_id": 8453}, *args)
 
-    assert (tx, error) == (None, trade.TEST_MODE)
+    assert (tx, error) == (None, trade.OFF)
     opened.assert_not_awaited()
 
 
@@ -217,3 +217,21 @@ async def test_a_sell_without_a_key_is_refused(monkeypatch):
 
     assert (tx, error) == (None, trade.NO_KEY)
     opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,refused", [(0, True), (1, False), (2, False)])
+async def test_watch_still_sells_but_off_does_not(monkeypatch, mode, refused):
+    OPTIONS["mode"] = mode
+    opened = AsyncMock(side_effect=RuntimeError("reached the chain"))
+    monkeypatch.setattr(trade, "open_w3", opened)
+
+    if refused:
+        assert await trade.execute_sell({"chain_id": 8453}, dict(PAIR)) == (
+            None,
+            trade.OFF,
+        )
+        opened.assert_not_awaited()
+    else:
+        with pytest.raises(RuntimeError, match="reached the chain"):
+            await trade.execute_sell({"chain_id": 8453}, dict(PAIR))

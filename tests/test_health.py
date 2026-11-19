@@ -21,6 +21,7 @@ def database(monkeypatch, make_cursor, patch_session):
 
 @pytest.fixture
 def chain(monkeypatch, database):
+    monkeypatch.setattr(health, "pairs_get_by_status", AsyncMock(return_value=[]))
     monkeypatch.setattr(
         health, "STARTED_AT", datetime.now(timezone.utc) - timedelta(days=1)
     )
@@ -61,7 +62,7 @@ async def test_all_well(chain):
     assert report["low_eth"] is False
     assert report["eth"] == 0.5
     assert "Net0: 🟢 1/1 up" in report["text"]
-    assert "Trading: 🟢 ON" in report["text"]
+    assert "Mode: 💰 Live" in report["text"]
 
 
 @pytest.mark.asyncio
@@ -105,10 +106,10 @@ async def test_rpc_outage_and_quiet_pairs_are_reported(chain):
 
 @pytest.mark.asyncio
 async def test_watch_only_is_shown(chain):
-    OPTIONS["trading_enabled"] = 0
+    OPTIONS["mode"] = 1
     chain()
 
-    assert "Trading: 👀 Watch-only" in (await health.scanner_health())["text"]
+    assert "Mode: 👀 Watch" in (await health.scanner_health())["text"]
 
 
 @pytest.mark.asyncio
@@ -126,7 +127,7 @@ async def test_checking_health_never_cleans_the_database(monkeypatch, chain):
 
 @pytest.mark.asyncio
 async def test_watch_only_never_alerts_about_eth(chain):
-    OPTIONS.update(trading_enabled=0, pairs_enabled=1)
+    OPTIONS.update(mode=1, pairs_enabled=1)
     chain(balances=(0.001,))
 
     report = await health.scanner_health()

@@ -126,7 +126,7 @@ async def test_low_eth_switches_the_monitors_off_and_alerts(monkeypatch, jq):
     assert saved == [("pairs_enabled", 0), ("strategy_enabled", 0)]
     assert jq.get_jobs_by_name("Pairs Monitor") == []
     assert jq.get_jobs_by_name("Strategy Monitor") == []
-    assert jq.get_jobs_by_name("Sell Monitor") == []
+    assert len(jq.get_jobs_by_name("Sell Monitor")) == 1
     text = c.bot.send_message.await_args.kwargs["text"]
     assert "LOW ETH BALANCE" in text and "Scanner & Strategy Disabled" in text
 
@@ -252,3 +252,71 @@ async def test_a_database_alert_links_to_the_dashboard_when_set(monkeypatch, url
     urls = [b.url for row in rows for b in row if b.url]
     assert urls == ([url] if url else [])
     assert rows[-1][0].callback_data == "cancel"
+
+
+def health_report(alerts, idle=False):
+    return AsyncMock(return_value={"alerts": alerts, "low_eth": False, "idle": idle})
+
+
+@pytest.mark.asyncio
+async def test_health_alerts_once_then_says_when_it_is_fixed(monkeypatch):
+    rpc = "🔥 *Base RPC*: all down"
+
+    monkeypatch.setattr(jobs, "scanner_health", health_report([rpc]))
+    first = ctx("Scanner Health")
+    await jobs.send_health(first)
+    assert first.bot.send_message.await_args.kwargs["text"] == (
+        "🚨 *SCANNER HEALTH ALERT*\n\n• " + rpc
+    )
+
+    again = ctx("Scanner Health")
+    await jobs.send_health(again)
+    again.bot.send_message.assert_not_awaited()
+
+    monkeypatch.setattr(jobs, "scanner_health", health_report([]))
+    fixed = ctx("Scanner Health")
+    await jobs.send_health(fixed)
+    text = fixed.bot.send_message.await_args.kwargs["text"]
+    assert text.startswith("✅ *SCANNER HEALTH RECOVERED*")
+    assert "🔥 *Base RPC* is fine again" in text
+
+
+@pytest.mark.asyncio
+async def test_a_long_problem_gets_one_reminder(monkeypatch):
+    rpc = "🔥 *Base RPC*: all down"
+    monkeypatch.setattr(jobs, "scanner_health", health_report([rpc]))
+    await jobs.send_health(ctx("Scanner Health"))
+    jobs.REPORTED["🔥 *Base RPC*"]["since"] -= jobs.REMIND_AFTER
+
+    later = ctx("Scanner Health")
+    await jobs.send_health(later)
+    assert later.bot.send_message.await_args.kwargs["text"].startswith(
+        "⏰ *STILL A PROBLEM*"
+    )
+
+    once = ctx("Scanner Health")
+    await jobs.send_health(once)
+    once.bot.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_an_idle_scanner_sends_no_health_alerts(monkeypatch):
+    monkeypatch.setattr(
+        jobs, "scanner_health", health_report(["🔥 *Base RPC*: all down"], idle=True)
+    )
+    c = ctx("Scanner Health")
+
+    await jobs.send_health(c)
+
+    c.bot.send_message.assert_not_awaited()
+
+
+def test_off_schedules_nothing_and_watch_keeps_the_sell_monitor(jq):
+    OPTIONS.update(mode=0, pairs_enabled=1, strategy_enabled=1)
+    app = SimpleNamespace(job_queue=jq, bot_data={})
+    jobs.start_jobs(app)
+    assert jq.calls == []
+
+    OPTIONS.update(mode=1, pairs_enabled=0, strategy_enabled=0)
+    jobs.start_jobs(app)
+    assert {c.name for c in jq.calls} == {"Sell Monitor", "Scanner Health"}

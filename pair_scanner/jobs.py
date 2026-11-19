@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import sentry_sdk
@@ -11,7 +11,7 @@ from .db.pairs import clear_archive, db_total_mb
 from .health import scanner_health
 from .helpers import close_kb
 from .monitors import run_pairs_monitor, run_sell_monitor, run_strategy_monitor
-from .settings import OPTIONS, SETTINGS
+from .settings import MODE_OFF, OPTIONS, SETTINGS, current_mode
 from .watchers import watch_new_pairs, watch_pair_metadata
 
 application = None
@@ -19,6 +19,8 @@ shares_host = False
 DEFAULT_INTERVAL_MINUTES = 60
 LIVE_FIRST_RUN_SECONDS = 60
 TRADING_FLAGS = ("pairs_enabled", "strategy_enabled")
+REMIND_AFTER = timedelta(hours=12)
+REPORTED = {}
 
 
 async def send_buys(context: ContextTypes.DEFAULT_TYPE):
@@ -133,8 +135,11 @@ async def send_health(context: ContextTypes.DEFAULT_TYPE):
         sentry_sdk.capture_exception(e)
 
     report = await scanner_health()
-    alerts = cleaned + list(report["alerts"])
+    if report.get("idle"):
+        REPORTED.clear()
+        return
 
+    events = list(cleaned)
     if report["low_eth"]:
         for flag in TRADING_FLAGS:
             try:
@@ -143,12 +148,49 @@ async def send_health(context: ContextTypes.DEFAULT_TYPE):
                 sentry_sdk.capture_exception(e)
                 OPTIONS[flag] = 0
             apply_toggle(context.application, flag, enabled=False)
-        alerts.append("🤖 *Scanner & Strategy Disabled* — insufficient ETH balance")
+        events.append("🤖 *Scanner & Strategy Disabled* — insufficient ETH balance")
 
-    if alerts:
+    now = datetime.now(timezone.utc)
+    current = {alert.split(":")[0]: alert for alert in report["alerts"]}
+    new = [alert for key, alert in current.items() if key not in REPORTED]
+    fixed = [
+        (key, now - REPORTED.pop(key)["since"])
+        for key in list(REPORTED)
+        if key not in current
+    ]
+    reminders = []
+    for key, alert in current.items():
+        seen = REPORTED.setdefault(key, {"since": now, "reminded": False})
+        if not seen["reminded"] and now - seen["since"] >= REMIND_AFTER:
+            seen["reminded"] = True
+            reminders.append(alert)
+
+    sections = []
+    if events or new:
+        sections.append(
+            "🚨 *SCANNER HEALTH ALERT*\n\n"
+            + "\n".join(f"• {alert}" for alert in events + new)
+        )
+    if reminders:
+        sections.append(
+            "⏰ *STILL A PROBLEM* (over 12 hours)\n\n"
+            + "\n".join(f"• {alert}" for alert in reminders)
+        )
+    if fixed:
+        sections.append(
+            "✅ *SCANNER HEALTH RECOVERED*\n\n"
+            + "\n".join(
+                f"• {key} is fine again, after "
+                f"{int(gone.total_seconds() // 3600)}h "
+                f"{int(gone.total_seconds() % 3600 // 60)}m"
+                for key, gone in fixed
+            )
+        )
+
+    if sections:
         await context.bot.send_message(
             chat_id=SETTINGS.alerts_chat_id,
-            text="🚨 *SCANNER HEALTH ALERT*\n\n" + "\n".join(f"• {a}" for a in alerts),
+            text="\n\n".join(sections),
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(
                 (
@@ -189,7 +231,7 @@ JOBS = {
     "Sell Monitor": {
         "kind": "repeating",
         "callback": send_sells,
-        "flags": ("pairs_enabled", "strategy_enabled"),
+        "flags": (),
         "interval": "sell_monitor_interval",
         "first": 360,
     },
@@ -225,8 +267,9 @@ def set_job(name, application, enabled=None, minutes=None, first=None):
             job.schedule_removal()
 
     if enabled is None:
-        enabled = not cfg["flags"] or any(
-            int(OPTIONS.get(f, 0) or 0) == 1 for f in cfg["flags"]
+        enabled = current_mode() != MODE_OFF and (
+            not cfg["flags"]
+            or any(int(OPTIONS.get(f, 0) or 0) == 1 for f in cfg["flags"])
         )
     if not enabled:
         return False
@@ -272,7 +315,7 @@ def apply_toggle(application, flag, enabled):
     for name, cfg in JOBS.items():
         if flag not in cfg["flags"]:
             continue
-        should_run = any(
+        should_run = current_mode() != MODE_OFF and any(
             enabled if f == flag else int(OPTIONS.get(f, 0) or 0) == 1
             for f in cfg["flags"]
         )

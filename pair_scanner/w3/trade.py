@@ -16,12 +16,12 @@ from ..networks import (
     V3_ROUTER_ABI,
     V3_ROUTER_SELF,
 )
-from ..settings import OPTIONS, SETTINGS, is_test_mode
+from ..settings import MODE_LIVE, MODE_OFF, OPTIONS, SETTINGS, current_mode
 from . import open_w3, pool_kind
 
 DUST_GAS_UNITS = 300_000
-WATCH_ONLY = "Trading is off (watch-only)"
-TEST_MODE = "Test mode: no trades are sent"
+WATCH_ONLY = "Watch mode: no buys"
+OFF = "The scanner is off: no trades are sent"
 NO_KEY = "No private key is set"
 RECEIPT_TIMEOUT = 60
 
@@ -49,9 +49,9 @@ nonce_manager = NonceManager()
 
 
 async def execute_buy(conf: dict, token_addr, amount_eth, pair_addr=None):
-    if is_test_mode():
-        return None, TEST_MODE
-    if not int(OPTIONS.get("trading_enabled", 0)) or not SETTINGS.private_key:
+    if current_mode() == MODE_OFF:
+        return None, OFF
+    if current_mode() != MODE_LIVE or not SETTINGS.private_key:
         return None, WATCH_ONLY
     private_key = SETTINGS.private_key
     buffer = float(OPTIONS.get("slippage", 5.0))
@@ -143,8 +143,8 @@ async def execute_buy(conf: dict, token_addr, amount_eth, pair_addr=None):
 
 
 async def execute_sell(conf: dict, pos, skip_dust=False):
-    if is_test_mode():
-        return None, TEST_MODE
+    if current_mode() == MODE_OFF:
+        return None, OFF
     if not SETTINGS.private_key:
         return None, NO_KEY
     private_key = SETTINGS.private_key

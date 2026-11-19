@@ -43,7 +43,7 @@ async def test_a_new_database_gets_its_tables_and_safe_defaults(
     make_cursor, patch_session, capsys
 ):
     cur = patch_session(db.schema, fake_db(make_cursor))
-    OPTIONS["trading_enabled"] = 1
+    OPTIONS["mode"] = 2
 
     await db.init_scanner_db()
 
@@ -53,7 +53,7 @@ async def test_a_new_database_gets_its_tables_and_safe_defaults(
         f"{len(OPTION_DEFAULTS)} settings"
     ]
     assert OPTIONS == OPTION_DEFAULTS
-    assert OPTIONS["trading_enabled"] == 0
+    assert OPTIONS["mode"] == 1
 
 
 @pytest.mark.asyncio
@@ -96,3 +96,24 @@ async def test_option_set_refuses_unknown_settings(make_cursor, patch_session):
 
     with pytest.raises(ValueError):
         await db.option_set("private_key", "0x1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("old,mode", [("1", 2), ("0", 1)])
+async def test_the_old_trading_switch_becomes_the_mode(
+    make_cursor, patch_session, old, mode
+):
+    cur = patch_session(
+        db.schema,
+        fake_db(
+            make_cursor,
+            tables={"pairs", "positions", "scanner_settings"},
+            stored=[{"name": "trading_enabled", "value": old}],
+        ),
+    )
+
+    await db.init_scanner_db()
+
+    assert OPTIONS["mode"] == mode
+    sql = [c[0] for c in cur.calls]
+    assert "DELETE FROM scanner_settings WHERE name = 'trading_enabled'" in sql

@@ -19,6 +19,7 @@ ENV_VARS = {
     "alchemy_api_key": "ALCHEMY_API_KEY",
     "ankr_api_key": "ANKR_API_KEY",
     "timezone": "TIMEZONE",
+    "mode": "MODE",
     "test_mode": "TEST_MODE",
     "db_dashboard_url": "DB_DASHBOARD_URL",
 }
@@ -40,13 +41,17 @@ SETTINGS = Settings(
     alchemy_api_key=None,
     ankr_api_key=None,
     timezone="Europe/London",
+    mode=None,
     test_mode=False,
     env_prefix="",
     db_dashboard_url=None,
 )
 
+MODE_OFF, MODE_WATCH, MODE_LIVE = 0, 1, 2
+MODE_NAMES = {MODE_OFF: "⏸️ Off", MODE_WATCH: "👀 Watch", MODE_LIVE: "💰 Live"}
+
 OPTION_DEFAULTS = {
-    "trading_enabled": 0,
+    "mode": MODE_WATCH,
     "pairs_enabled": 1,
     "strategy_enabled": 0,
     "buy_alerts_enabled": 1,
@@ -102,8 +107,18 @@ def setup(env_prefix="", **options):
         setattr(SETTINGS, name, value)
 
 
-def is_test_mode():
-    return str(SETTINGS.test_mode).lower() in ("1", "true", "yes", "on")
+def forced_mode():
+    if str(SETTINGS.test_mode).lower() in ("1", "true", "yes", "on"):
+        return MODE_OFF
+    names = {"off": MODE_OFF, "watch": MODE_WATCH, "live": MODE_LIVE}
+    return names.get(str(SETTINGS.mode or "").strip().lower())
+
+
+def current_mode():
+    forced = forced_mode()
+    if forced is not None:
+        return forced
+    return int(OPTIONS.get("mode", MODE_WATCH) or 0)
 
 
 def is_owner(user_id):

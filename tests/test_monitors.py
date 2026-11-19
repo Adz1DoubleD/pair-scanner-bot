@@ -8,6 +8,7 @@ import pytest
 from conftest import freeze_datetime, make_ctx, utc
 
 import pair_scanner.monitors as auto
+import pair_scanner.strategy as strategy
 
 
 @pytest.fixture
@@ -20,8 +21,8 @@ def strat(monkeypatch):
         "buy_amount_eth": 0.0001,
         "trading_enabled": 1,
     }
-    monkeypatch.setattr(auto, "OPTIONS", settings)
-    monkeypatch.setattr(auto, "NETWORKS", {"Base": conf})
+    monkeypatch.setattr(strategy, "OPTIONS", settings)
+    monkeypatch.setattr(strategy, "NETWORKS", {"Base": conf})
 
     gp = {"sell_tax": 0.0}
     m = SimpleNamespace(
@@ -41,19 +42,22 @@ def strat(monkeypatch):
         strat_add=AsyncMock(),
         capture=MagicMock(),
     )
-    monkeypatch.setattr(auto, "pairs_get_by_status", m.held)
-    monkeypatch.setattr(auto, "fetch_candidates", m.candidates)
-    monkeypatch.setattr(auto, "get_security_audit", m.audit)
-    monkeypatch.setattr(auto, "check_honeypot", m.honeypot)
-    monkeypatch.setattr(auto, "simulate_sell", m.simulate)
-    monkeypatch.setattr(auto, "execute_buy", m.buy)
-    monkeypatch.setattr(auto, "get_token_metrics", m.metrics)
-    monkeypatch.setattr(auto, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
-    monkeypatch.setattr(auto, "pairs_position_add", m.position_add)
-    monkeypatch.setattr(auto, "pairs_strat_add", m.strat_add)
-    monkeypatch.setattr(auto, "dex_name", AsyncMock(return_value=None))
+    monkeypatch.setattr(strategy, "pairs_get_by_status", m.held)
+    monkeypatch.setattr(strategy, "fetch_candidates", m.candidates)
+    monkeypatch.setattr(strategy, "get_security_audit", m.audit)
+    monkeypatch.setattr(strategy, "check_honeypot", m.honeypot)
+    monkeypatch.setattr(strategy, "simulate_sell", m.simulate)
+    monkeypatch.setattr(strategy, "execute_buy", m.buy)
+    monkeypatch.setattr(strategy, "get_token_metrics", m.metrics)
+    monkeypatch.setattr(strategy, "fetch_eth_usd_price", AsyncMock(return_value=3000.0))
     monkeypatch.setattr(
-        auto, "sentry_sdk", SimpleNamespace(capture_exception=m.capture)
+        strategy, "trade_result", AsyncMock(return_value={"eth_spent": 0.0001})
+    )
+    monkeypatch.setattr(strategy, "pairs_position_add", m.position_add)
+    monkeypatch.setattr(strategy, "pairs_strat_add", m.strat_add)
+    monkeypatch.setattr(strategy, "dex_name", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        strategy, "sentry_sdk", SimpleNamespace(capture_exception=m.capture)
     )
     return m
 
@@ -80,7 +84,7 @@ async def test_strategy_filters_by_liquidity_and_momentum(strat):
         None,
     )
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "Fetched: `3` pools" in summary
     assert "Found: `1`" in summary
@@ -99,7 +103,7 @@ async def test_strategy_uses_configured_thresholds_and_buy_amount(strat):
         None,
     )
 
-    await auto.run_strategy_monitor(make_ctx())
+    await strategy.run_strategy_monitor(make_ctx())
 
     strat.buy.assert_awaited_once_with(
         strat.conf, "0xb", 0.5, "0xpair-b", monitor="strategy"
@@ -112,7 +116,7 @@ async def test_strategy_never_rebuys_a_traded_token(strat, status):
     strat.held.return_value = [{"target_address": "0xA", "status": status}]
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "🚫 Nothing to buy" in summary
     assert "Found: `0`" in summary
@@ -121,7 +125,7 @@ async def test_strategy_never_rebuys_a_traded_token(strat, status):
 
 @pytest.mark.asyncio
 async def test_strategy_looks_up_monitoring_positions(strat):
-    await auto.run_strategy_monitor(make_ctx())
+    await strategy.run_strategy_monitor(make_ctx())
 
     strat.held.assert_awaited_once_with(status=None, table="positions")
 
@@ -131,7 +135,7 @@ async def test_strategy_handles_no_held_result(strat):
     strat.held.return_value = None
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "🛒 Bought: `1` (1/5 positions)" in summary
 
@@ -145,7 +149,7 @@ async def test_strategy_stops_at_max_positions(strat):
     ]
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "⏸️ At max positions (2/2)" in summary
     strat.buy.assert_not_awaited()
@@ -155,7 +159,7 @@ async def test_strategy_stops_at_max_positions(strat):
 async def test_strategy_nothing_to_buy(strat):
     strat.candidates.return_value = ([], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert summary.startswith("🧭 *Strategy Monitor*")
     assert "Fetched: `0` pools" in summary
@@ -166,7 +170,7 @@ async def test_strategy_nothing_to_buy(strat):
 async def test_strategy_shows_fetch_error(strat):
     strat.candidates.return_value = ([], "rate limited")
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "⚠️ Error: `rate limited`" in summary
 
@@ -180,7 +184,7 @@ async def test_strategy_buys_best_momentum_first_up_to_free_slots(strat):
         None,
     )
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert [c.args[1] for c in strat.buy.await_args_list] == ["0xb", "0xc"]
     assert "Found: `3`" in summary
@@ -193,7 +197,7 @@ async def test_strategy_keeps_going_past_rejections_to_fill_slots(strat):
     strat.candidates.return_value = ([cand("A", h1=20), cand("B", h1=10)], None)
     strat.honeypot.side_effect = [False, True]
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     strat.buy.assert_awaited_once_with(
         strat.conf, "0xb", 0.0001, "0xpair-b", monitor="strategy"
@@ -207,23 +211,23 @@ async def test_strategy_returns_a_chart_for_each_buy_only(strat):
     strat.candidates.return_value = ([cand("A", h1=20), cand("B", h1=10)], None)
     strat.honeypot.side_effect = [True, False]
 
-    result = await auto.run_strategy_monitor(make_ctx())
+    result = await strategy.run_strategy_monitor(make_ctx())
 
     assert result["charts"] == [("A", "0xpair-a")]
 
 
 @pytest.mark.asyncio
 async def test_strategy_returns_no_charts_when_nothing_bought(strat):
-    assert (await auto.run_strategy_monitor(make_ctx()))["charts"] == []
+    assert (await strategy.run_strategy_monitor(make_ctx()))["charts"] == []
 
 
 @pytest.mark.asyncio
 async def test_strategy_buy_line_shows_the_dex(strat, monkeypatch):
     dex = AsyncMock(return_value="V3 0.3%")
-    monkeypatch.setattr(auto, "dex_name", dex)
+    monkeypatch.setattr(strategy, "dex_name", dex)
     strat.candidates.return_value = ([cand("A", liq=500_000, h1=10.0)], None)
 
-    result = await auto.run_strategy_monitor(make_ctx())
+    result = await strategy.run_strategy_monitor(make_ctx())
 
     dex.assert_awaited_once_with(strat.conf, "0xpair-a", short=True)
     assert result["buys"] == ["$A · +10.0% 1h · $500k · V3 0.3%"]
@@ -233,7 +237,7 @@ async def test_strategy_buy_line_shows_the_dex(strat, monkeypatch):
 async def test_strategy_records_successful_buy(strat):
     strat.candidates.return_value = ([cand("A", liq=500_000, h1=10.0)], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "🛒 Bought: `1` (1/5 positions)" in summary
     assert "✅ $A (+10.0% / $500,000)" in summary
@@ -243,6 +247,7 @@ async def test_strategy_records_successful_buy(strat):
         "symbol": "A",
         "network": "Base",
         "buy_tx": "0xbuytx",
+        "eth_spent": 0.0001,
     }
     assert strat.metrics.await_args.args == (entry, strat.conf)
     strat.position_add.assert_awaited_once_with(
@@ -302,7 +307,7 @@ async def test_strategy_rejects_unsafe_tokens(strat, text, status, setup):
     setup(strat)
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     strat.buy.assert_not_awaited()
     strat.position_add.assert_not_awaited()
@@ -317,7 +322,7 @@ async def test_strategy_failed_buy_is_reported_and_not_recorded(strat):
     strat.buy.return_value = (None, "insufficient funds")
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "❌ A — insufficient funds" in summary
     assert "🛡️ Passed: `1`" in summary
@@ -331,7 +336,7 @@ async def test_strategy_one_failing_candidate_does_not_stop_the_rest(strat):
     strat.candidates.return_value = ([cand("A", h1=20), cand("B", h1=10)], None)
     strat.audit.side_effect = [RuntimeError("boom"), ("clear", True, strat.gp)]
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert "⚠️ A — boom" in summary
     assert "✅ $B" in summary
@@ -431,6 +436,10 @@ def mon(monkeypatch):
         completed=AsyncMock(),
         sleep=AsyncMock(),
         capture=MagicMock(),
+        paper=[],
+    )
+    m.positions.side_effect = lambda status=None, table=None, **kw: (
+        m.positions.return_value if status == "monitoring" else m.paper
     )
     monkeypatch.setattr(auto, "pairs_get_by_status", m.positions)
     monkeypatch.setattr(auto, "get_token_metrics", m.metrics)
@@ -478,10 +487,14 @@ async def test_monitor_no_positions_does_nothing(mon):
     assert await auto.run_sell_monitor(make_ctx()) == {
         "sells": [],
         "losses": [],
+        "paper": [],
         "charts": [],
     }
 
-    mon.positions.assert_awaited_once_with(status="monitoring", table="positions")
+    assert [c.kwargs["status"] for c in mon.positions.await_args_list] == [
+        "monitoring",
+        "paper",
+    ]
     mon.metrics.assert_not_awaited()
     mon.sleep.assert_not_awaited()
 
@@ -948,7 +961,7 @@ async def test_monitor_reports_several_closes_in_one_run(mon):
 async def test_strategy_escapes_symbol_in_buy_line(strat):
     strat.candidates.return_value = ([cand("MY_TOKEN", liq=500_000, h1=10.0)], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert r"✅ $MY\_TOKEN (+10.0% / $500,000)" in summary
     strat.strat_add.assert_awaited_once_with(
@@ -961,7 +974,7 @@ async def test_strategy_escapes_failed_buy_error(strat):
     strat.buy.return_value = (None, "execution reverted: TRANSFER_FROM_FAILED")
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert r"❌ A — execution reverted: TRANSFER\_FROM\_FAILED" in summary
 
@@ -971,7 +984,7 @@ async def test_strategy_escapes_rejection_reason(strat):
     strat.audit.return_value = ("is_proxy", True, {"sell_tax": 0.0})
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     assert r"🚫 A — is\_proxy" in summary
 
@@ -1214,7 +1227,7 @@ async def test_strategy_skips_pools_younger_than_the_minimum_age(
     strat.settings["strat_min_pool_age_hours"] = min_age
     strat.candidates.return_value = ([cand("A", created_at=created_at)], None)
 
-    await auto.run_strategy_monitor(make_ctx())
+    await strategy.run_strategy_monitor(make_ctx())
 
     assert strat.buy.await_count == int(bought)
 
@@ -1233,7 +1246,7 @@ async def test_strategy_checks_the_pool_on_chain_before_buying(
     strat.metrics.return_value = pool
     strat.candidates.return_value = ([cand("A")], None)
 
-    summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
 
     strat.buy.assert_not_awaited()
     strat.strat_add.assert_awaited_once_with("0xa", "0xpair-a", "A", status)
@@ -1247,7 +1260,79 @@ async def test_strategy_records_each_run_for_the_health_check(strat):
         "fetch failed (status 429)",
     )
 
-    await auto.run_strategy_monitor(make_ctx())
+    await strategy.run_strategy_monitor(make_ctx())
 
-    assert auto.STRATEGY_RUN["fetched"] == 2
-    assert auto.STRATEGY_RUN["error"] == "fetch failed (status 429)"
+    assert strategy.STRATEGY_RUN["fetched"] == 2
+    assert strategy.STRATEGY_RUN["error"] == "fetch failed (status 429)"
+
+
+def quoting(mon, worth_eth):
+    async def sell(conf, pos, **kwargs):
+        if kwargs.get("quote"):
+            return (
+                (None, "no route")
+                if worth_eth is None
+                else (int(worth_eth * 1e18), None)
+            )
+        return ("0xsell", None)
+
+    mon.sell.side_effect = sell
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "price,worth,sold",
+    [
+        (2.5, 0.001, False),
+        (1.0, 0.002, True),
+        (1.6, None, True),
+        (1.0, None, False),
+    ],
+    ids=[
+        "price-spike-but-sale-is-flat",
+        "sale-doubles",
+        "no-quote-uses-price",
+        "no-quote-flat",
+    ],
+)
+async def test_sell_rules_use_what_a_sale_would_really_return(mon, price, worth, sold):
+    quoting(mon, worth)
+
+    await run_monitor(mon, make_position(eth_spent=0.001), price=price)
+
+    real_sells = [c for c in mon.sell.await_args_list if not c.kwargs.get("quote")]
+    assert bool(real_sells) is sold
+
+
+@pytest.mark.asyncio
+async def test_a_watch_pick_is_followed_but_never_sold(mon):
+    quoting(mon, 0.002)
+    mon.positions.return_value = []
+    mon.paper = [make_position(status="paper", eth_spent=0.001, decimals=18)]
+    mon.metrics.return_value = {"price_eth": 1.0, "liq_eth": 10.0}
+
+    result = await auto.run_sell_monitor(make_ctx())
+
+    quote = mon.sell.await_args_list[0]
+    assert quote.kwargs == {"quote": True, "amount": 10**15}
+    assert all(c.kwargs.get("quote") for c in mon.sell.await_args_list)
+    mon.completed.assert_awaited_once()
+    args = mon.completed.await_args
+    assert args.kwargs["status"] == "paper-closed"
+    assert args.kwargs["eth_received"] == pytest.approx(0.002)
+    assert result["paper"] == ["$TKN · take-profit · +100.00%"]
+    assert result["positions"][0] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_watch_pick_records_a_half_sale_then_counts_both_halves(mon):
+    auto.OPTIONS["half_sell_percent"] = 30
+    quoting(mon, 0.00135)
+    mon.positions.return_value = []
+    mon.paper = [make_position(status="paper", eth_spent=0.001, decimals=18)]
+
+    result = await auto.run_sell_monitor(make_ctx())
+
+    assert mon.update.await_args.kwargs["half_eth"] == pytest.approx(0.000675)
+    assert result["paper"] == ["$TKN · would sell half · +35.00%"]
+    mon.completed.assert_not_awaited()

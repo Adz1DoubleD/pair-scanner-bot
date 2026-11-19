@@ -129,7 +129,7 @@ async def clear_archive():
         await cur.execute(
             """
             DELETE FROM positions
-            WHERE status = 'completed'
+            WHERE status IN ('completed', 'paper-closed')
               AND last_updated < NOW() - INTERVAL 7 DAY
             """
         )
@@ -206,6 +206,9 @@ async def pairs_get_stats(days=1):
                 "wins": 0,
                 "eth_pnl": 0.0,
                 "eth_counted": 0,
+                "would_closed": 0,
+                "would_avg": 0.0,
+                "would_wins": 0,
             }
             for monitor in ("pairs", "strategy")
         },
@@ -245,22 +248,29 @@ async def pairs_get_stats(days=1):
             )
 
         sold = f"x.status = 'completed' AND {window.format(col='x.last_updated')}"
+        paper = f"x.status = 'paper-closed' AND {window.format(col='x.last_updated')}"
         await cur.execute(
             f"""
             SELECT
                 IF(p.source = 'strat', 'strategy', 'pairs') AS monitor,
-                SUM({window.format(col="x.tracked_at")}) AS bought,
+                SUM(
+                    x.status IN ('monitoring', 'completed')
+                    AND {window.format(col="x.tracked_at")}
+                ) AS bought,
                 SUM({sold}) AS closed,
                 AVG(CASE WHEN {sold} THEN x.pnl_percent END) AS avg_pnl,
                 SUM({sold} AND x.pnl_percent > 0) AS wins,
                 SUM(CASE WHEN {sold} THEN x.eth_received - x.eth_spent END) AS eth_pnl,
                 COUNT(CASE WHEN {sold} THEN x.eth_received - x.eth_spent END)
-                    AS eth_counted
+                    AS eth_counted,
+                SUM({paper}) AS would_closed,
+                AVG(CASE WHEN {paper} THEN x.pnl_percent END) AS would_avg,
+                SUM({paper} AND x.pnl_percent > 0) AS would_wins
             FROM positions x
             LEFT JOIN pairs p ON p.target_address = x.target_address
             GROUP BY monitor
             """,
-            window_args * 6,
+            window_args * 9,
         )
         for row in await cur.fetchall() or []:
             stats_dict["monitors"][row["monitor"]].update(
@@ -270,6 +280,9 @@ async def pairs_get_stats(days=1):
                 wins=int(row["wins"] or 0),
                 eth_pnl=float(row["eth_pnl"] or 0),
                 eth_counted=int(row["eth_counted"] or 0),
+                would_closed=int(row["would_closed"] or 0),
+                would_avg=float(row["would_avg"] or 0),
+                would_wins=int(row["would_wins"] or 0),
             )
 
         await cur.execute(
@@ -281,6 +294,7 @@ async def pairs_get_stats(days=1):
         await cur.execute("""
             SELECT id, target_address, symbol, pnl_percent, tracked_at as found_at, status
             FROM positions
+            WHERE status IN ('monitoring', 'completed')
             ORDER BY tracked_at DESC LIMIT 1
         """)
         last_buy = await cur.fetchone()
@@ -318,8 +332,9 @@ async def pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data=N
              entry_price_eth, entry_liq_eth, entry_mcap_eth,
              current_price_eth, current_liq_eth, current_mcap_eth,
              entry_sec_status, current_sec_status, is_renounced,
-             buy_tax, sell_tax)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             buy_tax, sell_tax, eth_spent, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s)
             AS new
             ON DUPLICATE KEY UPDATE
                 current_price_eth = new.current_price_eth,
@@ -352,6 +367,8 @@ async def pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data=N
                 is_renounced,
                 buy_tax,
                 sell_tax,
+                entry.get("eth_spent"),
+                entry.get("status", "monitoring"),
             ),
         )
         return cur.lastrowid
@@ -411,21 +428,27 @@ async def pairs_position_update(
 
 
 async def pairs_mark_completed(
-    address, pnl=None, sell_tx=None, eth_spent=None, eth_received=None
+    address,
+    pnl=None,
+    sell_tx=None,
+    eth_spent=None,
+    eth_received=None,
+    status="completed",
 ):
     async with db_session() as cur:
+        if status == "completed":
+            await cur.execute(
+                "UPDATE pairs SET status = 'completed' WHERE target_address = %s",
+                (address,),
+            )
         await cur.execute(
-            "UPDATE pairs SET status = 'completed' WHERE target_address = %s",
-            (address,),
-        )
-        await cur.execute(
-            "UPDATE positions SET status = 'completed', "
+            "UPDATE positions SET status = %s, "
             "pnl_percent = COALESCE(%s, pnl_percent), "
             "sell_tx = COALESCE(%s, sell_tx), "
             "eth_spent = COALESCE(%s, eth_spent), "
             "eth_received = COALESCE(%s, eth_received) "
             "WHERE target_address = %s",
-            (pnl, sell_tx, eth_spent, eth_received, address),
+            (status, pnl, sell_tx, eth_spent, eth_received, address),
         )
 
 

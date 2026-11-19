@@ -77,6 +77,12 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
             if total["closed"]
             else 0.0
         )
+        total["would_avg"] = (
+            (a["would_avg"] * a["would_closed"] + b["would_avg"] * b["would_closed"])
+            / total["would_closed"]
+            if total["would_closed"]
+            else 0.0
+        )
         shown.append(("📊 *Total*", total))
     eth_usd = (
         await fetch_eth_usd_price() if any(m["eth_counted"] for _, m in shown) else 0
@@ -92,6 +98,11 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
                 f"Win Rate: `{m['wins'] / m['closed'] * 100:.0f}%` "
                 f"({m['wins']}/{m['closed']})",
             ]
+        if m["would_closed"]:
+            lines.append(
+                f"Would have made: `{m['would_avg']:+.2f}%` "
+                f"({m['would_wins']}/{m['would_closed']} up)"
+            )
         if m["eth_counted"]:
             usd = m["eth_pnl"] * eth_usd
             lines.append(

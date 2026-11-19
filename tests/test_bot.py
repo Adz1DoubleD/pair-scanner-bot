@@ -251,6 +251,9 @@ STATS = {
             "wins": 0,
             "eth_pnl": 0.0,
             "eth_counted": 0,
+            "would_closed": 0,
+            "would_avg": 0.0,
+            "would_wins": 0,
         },
         "strategy": {
             "found": 0,
@@ -262,6 +265,9 @@ STATS = {
             "wins": 0,
             "eth_pnl": 0.0,
             "eth_counted": 0,
+            "would_closed": 0,
+            "would_avg": 0.0,
+            "would_wins": 0,
         },
     },
 }
@@ -587,3 +593,32 @@ async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
     total = text.split("📊 *Total*")[1]
     assert "Bought: 4" in total and "Sold: 3" in total
     assert "Avg Return: `+0.00%`" in total
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    OPTIONS.update(pairs_mode=1, strategy_mode=0)
+    pairs = {
+        **STATS["monitors"]["pairs"],
+        "would_closed": 4,
+        "would_avg": 12.5,
+        "would_wins": 3,
+    }
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_get_stats",
+        AsyncMock(
+            return_value=(
+                {"total": 3, "monitors": {**STATS["monitors"], "pairs": pairs}},
+                None,
+                None,
+                None,
+            )
+        ),
+    )
+
+    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+
+    assert "Would have made: `+12.50%` (3/4 up)" in text

@@ -165,7 +165,7 @@ async def test_position_add_converts_missing_metrics_to_zero(
     assert result == 21
     params = cur.execute.call_args.args[1]
     assert params[6:12] == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    assert params[14:] == (True, 0.0, 0.0)
+    assert params[14:] == (True, 0.0, 0.0, None, "monitoring")
 
 
 @pytest.mark.asyncio
@@ -204,6 +204,8 @@ async def test_position_add_passes_metrics_and_tax(make_cursor, patch_session):
         False,
         2.0,
         5.0,
+        None,
+        "monitoring",
     )
 
 
@@ -228,7 +230,14 @@ async def test_mark_completed_updates_pair_and_position_with_pnl(
     patch_session(pairs, cur)
     await pairs.pairs_mark_completed("token", 12.5)
     assert cur.execute.await_count == 2
-    assert cur.execute.call_args.args[1] == (12.5, None, None, None, "token")
+    assert cur.execute.call_args.args[1] == (
+        "completed",
+        12.5,
+        None,
+        None,
+        None,
+        "token",
+    )
 
 
 @pytest.mark.asyncio
@@ -237,7 +246,14 @@ async def test_mark_completed_without_pnl(make_cursor, patch_session):
     patch_session(pairs, cur)
     await pairs.pairs_mark_completed("token")
     assert cur.execute.await_count == 2
-    assert cur.execute.call_args.args[1] == (None, None, None, None, "token")
+    assert cur.execute.call_args.args[1] == (
+        "completed",
+        None,
+        None,
+        None,
+        None,
+        "token",
+    )
 
 
 @pytest.mark.asyncio
@@ -254,6 +270,7 @@ async def test_mark_completed_saves_sell_tx_and_real_amounts(
         eth_received=0.0000081,
     )
     assert cur.execute.call_args.args[1] == (
+        "completed",
         -25.0,
         "0xsell",
         0.0000108,
@@ -313,3 +330,16 @@ async def test_pairs_get_for_audit_excludes_strat_rows(make_cursor, patch_sessio
     assert queries, "expected pairs_get_for_audit to run queries"
     assert all("source = 'pairs'" in q for q in queries)
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_a_paper_position_closes_without_touching_the_pair(
+    make_cursor, patch_session
+):
+    cur = make_cursor()
+    patch_session(pairs, cur)
+
+    await pairs.pairs_mark_completed("token", 20.0, status="paper-closed")
+
+    assert cur.execute.await_count == 1
+    assert cur.execute.call_args.args[1][0] == "paper-closed"

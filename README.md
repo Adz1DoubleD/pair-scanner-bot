@@ -13,6 +13,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 - **Finds new pairs.** It watches the Uniswap V2, Uniswap V3 and Aerodrome factories on Base for new pools paired with WETH.
 - **Audits them.** It checks liquidity, the liquidity-to-market-cap ratio, locked LP, whether one wallet holds too much of the supply, taxes, contract security (GoPlus), honeypot risk (honeypot.is), and whether a sale actually goes through (simulated against the chain).
 - **Buys what passes,** when the monitor is on 💰 Live, up to your limits.
+- **Sells half** once a position is up by `half_sell_percent` (30% by default; 0 turns it off). The rest then sells at break-even instead of the stop-loss, so a rug after that costs far less.
 - **Sells** on take-profit, stop-loss, trailing stop (it starts once a position is up by `trailing_start_percent`, 20% by default, so gains are protected before take-profit), rug (liquidity drop), dead token, or a honeypot appearing later.
 - **Strategy monitor (optional):** buys established pools with strong one-hour momentum.
 - **Alerts** for every buy, sell, would-buy and health problem.

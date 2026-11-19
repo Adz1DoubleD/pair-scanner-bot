@@ -111,6 +111,13 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
             peak_pnl = float(pos.get("peak_pnl_percent") or 0)
             dead_hours = float(s.get("dead_token_hours", 1))
             dead_threshold = float(s.get("dead_token_threshold", 2.0))
+            half_at = float(s.get("half_sell_percent", 0) or 0)
+            half_eth = pos.get("half_eth")
+            written_off = (
+                round((float(half_eth) / float(pos["eth_spent"]) - 1) * 100, 2)
+                if half_eth is not None and pos.get("eth_spent")
+                else -100.0
+            )
 
             should_sell = False
             is_rug = False
@@ -151,7 +158,9 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     continue
                 held -= 1
                 if tx_hash:
-                    result = await trade_result(network_conf, pos["buy_tx"], tx_hash)
+                    result = await trade_result(
+                        network_conf, pos["buy_tx"], tx_hash, earlier_eth=half_eth
+                    )
                     await pairs_mark_completed(
                         token_addr, sell_tx=tx_hash, **(result or {})
                     )
@@ -163,8 +172,10 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     await pairs_mark_completed(token_addr, pnl=pnl)
                     sells.append(f"📝 ${symbol} · no tokens left, closed · {pnl:+.2f}%")
                 else:
-                    await pairs_mark_completed(token_addr, pnl=-100)
-                    sells.append(f"☠️ ${symbol} · honeypot detected · -100%")
+                    await pairs_mark_completed(token_addr, pnl=written_off)
+                    sells.append(
+                        f"☠️ ${symbol} · honeypot detected · {written_off:+g}%"
+                    )
                 continue
 
             is_dead = (
@@ -184,9 +195,37 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                 reason = "take-profit"
             elif pnl <= -sl_trigger:
                 reason = "stop-loss"
+            elif half_eth is not None and pnl <= 0:
+                reason = "break-even"
             elif peak_pnl >= trailing_start and (peak_pnl - pnl) >= trailing_sl:
                 reason = "trailing-stop"
             should_sell = reason is not None
+
+            if (
+                not should_sell
+                and has_tx
+                and half_eth is None
+                and half_at > 0
+                and pnl >= half_at
+            ):
+                tx_hash, error = await execute_sell(network_conf, pos, half=True)
+                if tx_hash:
+                    result = await trade_result(network_conf, pos["buy_tx"], tx_hash)
+                    await pairs_position_update(
+                        new_metrics,
+                        pnl,
+                        liq_change,
+                        sec_status,
+                        is_renounced,
+                        pid,
+                        gp_data,
+                        half_eth=result["eth_received"] if result else 0,
+                        eth_spent=result["eth_spent"] if result else None,
+                    )
+                    if pos.get("pair_address"):
+                        charts.append((pos.get("symbol") or "???", pos["pair_address"]))
+                    sells.append(f"${symbol} · sold half · {pnl:+.2f}%")
+                    continue
 
             if should_sell:
                 if not has_tx:
@@ -216,9 +255,9 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         pid,
                         gp_data,
                     )
-                    await pairs_mark_completed(token_addr, pnl=-100)
+                    await pairs_mark_completed(token_addr, pnl=written_off)
                     held -= 1
-                    sells.append(f"💀 ${symbol} · unsellable · -100%")
+                    sells.append(f"💀 ${symbol} · unsellable · {written_off:+g}%")
                     continue
 
                 if error == "No token balance":
@@ -246,7 +285,9 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         pid,
                         gp_data,
                     )
-                    result = await trade_result(network_conf, pos["buy_tx"], tx_hash)
+                    result = await trade_result(
+                        network_conf, pos["buy_tx"], tx_hash, earlier_eth=half_eth
+                    )
                     await pairs_mark_completed(
                         token_addr, sell_tx=tx_hash, **(result or {})
                     )
@@ -275,9 +316,11 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                             pid,
                             gp_data,
                         )
-                        await pairs_mark_completed(token_addr, pnl=-100)
+                        await pairs_mark_completed(token_addr, pnl=written_off)
                         held -= 1
-                        sells.append(f"🚨 ${symbol} · rug, sell failed · -100%")
+                        sells.append(
+                            f"🚨 ${symbol} · rug, sell failed · {written_off:+g}%"
+                        )
                         continue
 
             await pairs_position_update(
@@ -316,7 +359,9 @@ async def run_sell_all(context: ContextTypes.DEFAULT_TYPE):
 
         if tx_hash:
             if pos.get("status") == "monitoring":
-                result = await trade_result(conf, pos.get("buy_tx"), tx_hash)
+                result = await trade_result(
+                    conf, pos.get("buy_tx"), tx_hash, earlier_eth=pos.get("half_eth")
+                )
                 await pairs_mark_completed(
                     pos["target_address"], sell_tx=tx_hash, **(result or {})
                 )

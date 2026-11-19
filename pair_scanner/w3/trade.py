@@ -144,7 +144,7 @@ async def execute_buy(
         return None, str(e)
 
 
-async def execute_sell(conf: dict, pos, skip_dust=False):
+async def execute_sell(conf: dict, pos, skip_dust=False, half=False):
     if all(current_mode(m) == MODE_OFF for m in MONITORS):
         return None, OFF
     if not SETTINGS.private_key:
@@ -165,6 +165,8 @@ async def execute_sell(conf: dict, pos, skip_dust=False):
     balance = await token_contract.functions.balanceOf(account.address).call()
     if balance == 0:
         return None, "No token balance"
+    if half:
+        balance //= 2
 
     try:
         gas_price = await w3.eth.gas_price

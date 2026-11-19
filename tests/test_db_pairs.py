@@ -217,7 +217,7 @@ async def test_position_update_preserves_taxes_when_gp_data_missing(
         {"price_eth": 1, "liq_eth": 2, "mcap_eth": 3}, 4, 5, "clear", True, 9
     )
     params = cur.execute.call_args.args[1]
-    assert params == (1, 2, 3, 4, 4, 5, "clear", True, None, None, 9)
+    assert params == (1, 2, 3, 4, 4, 5, "clear", True, None, None, None, None, 9)
 
 
 @pytest.mark.asyncio

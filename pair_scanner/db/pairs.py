@@ -349,7 +349,15 @@ async def pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data=N
 
 
 async def pairs_position_update(
-    metrics, pnl, liq_drift, sec_status, is_renounced, pos_id, gp_data=None
+    metrics,
+    pnl,
+    liq_drift,
+    sec_status,
+    is_renounced,
+    pos_id,
+    gp_data=None,
+    half_eth=None,
+    eth_spent=None,
 ):
     async with db_session() as cur:
         query = """
@@ -365,6 +373,8 @@ async def pairs_position_update(
                 is_renounced = %s,
                 buy_tax = COALESCE(%s, buy_tax),
                 sell_tax = COALESCE(%s, sell_tax),
+                half_eth = COALESCE(%s, half_eth),
+                eth_spent = COALESCE(%s, eth_spent),
                 last_updated = NOW()
             WHERE id = %s
         """
@@ -384,6 +394,8 @@ async def pairs_position_update(
                 is_renounced,
                 buy_tax,
                 sell_tax,
+                half_eth,
+                eth_spent,
                 pos_id,
             ),
         )

@@ -342,7 +342,9 @@ async def button_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     tx_hash, error = await execute_sell(conf, pos)
     if tx_hash:
-        trade = await trade_result(conf, pos.get("buy_tx"), tx_hash)
+        trade = await trade_result(
+            conf, pos.get("buy_tx"), tx_hash, earlier_eth=pos.get("half_eth")
+        )
         await pairs_mark_completed(
             pos["target_address"], sell_tx=tx_hash, **(trade or {})
         )

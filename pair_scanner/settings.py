@@ -74,6 +74,7 @@ OPTION_DEFAULTS = {
     "strat_min_momentum_h1": 3.0,
     "sell_monitor_interval": 1,
     "take_profit_percent": 100,
+    "half_sell_percent": 30.0,
     "stop_loss_percent": 25,
     "trailing_stop_percent": 20.0,
     "trailing_start_percent": 20.0,

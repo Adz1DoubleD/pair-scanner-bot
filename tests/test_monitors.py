@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
@@ -820,7 +821,7 @@ async def test_monitor_records_and_reports_real_pnl(mon, monkeypatch):
 
     closed = await run_monitor(mon, make_position(), price=1.5)
 
-    trade.assert_awaited_once_with(BASE_CONF, "0xbuy", "0xsell")
+    trade.assert_awaited_once_with(BASE_CONF, "0xbuy", "0xsell", earlier_eth=None)
     mon.completed.assert_awaited_once_with("0xtoken", sell_tx="0xsell", **real)
     assert closed == ["$TKN · take-profit · -25.00%"]
 
@@ -1097,3 +1098,74 @@ async def test_monitor_warns_separately_for_each_position(mon):
     closed = (await auto.run_sell_monitor(make_ctx()))["sells"]
 
     assert [line.split(" ·")[0] for line in closed] == ["⚠️ $AAA", "⚠️ $BBB"]
+
+
+@pytest.fixture
+def halves(mon, monkeypatch):
+    auto.OPTIONS["half_sell_percent"] = 30
+    trade = AsyncMock(
+        return_value={"eth_spent": 0.00001, "eth_received": 0.0000065, "pnl": -35.0}
+    )
+    monkeypatch.setattr(auto, "trade_result", trade)
+    mon.trade = trade
+    return mon
+
+
+@pytest.mark.asyncio
+async def test_half_is_sold_once_the_gain_is_reached(halves):
+    pos = make_position()
+
+    sells = await run_monitor(halves, pos, price=1.35)
+
+    halves.sell.assert_awaited_once_with(BASE_CONF, pos, half=True)
+    assert halves.update.await_args.kwargs == {
+        "half_eth": 0.0000065,
+        "eth_spent": 0.00001,
+    }
+    halves.completed.assert_not_awaited()
+    assert sells == ["$TKN · sold half · +35.00%"]
+
+
+@pytest.mark.asyncio
+async def test_take_profit_still_sells_everything(halves):
+    pos = make_position()
+
+    await run_monitor(halves, pos, price=1.6)
+
+    halves.sell.assert_awaited_once_with(BASE_CONF, pos)
+    halves.completed.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_half_is_only_sold_once(halves):
+    await run_monitor(
+        halves, make_position(half_eth=0.0000065, peak_pnl_percent=35), price=1.35
+    )
+
+    halves.sell.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_rest_sells_at_break_even_and_counts_both_halves(halves):
+    pos = make_position(half_eth=Decimal("0.0000065"), peak_pnl_percent=35)
+
+    sells = await run_monitor(halves, pos, price=0.99)
+
+    halves.sell.assert_awaited_once_with(BASE_CONF, pos)
+    halves.trade.assert_awaited_once_with(
+        BASE_CONF, "0xbuy", "0xsell", earlier_eth=Decimal("0.0000065")
+    )
+    assert sells == ["$TKN · break-even · -35.00%"]
+
+
+@pytest.mark.asyncio
+async def test_a_rug_after_half_keeps_what_the_half_brought_back(halves):
+    halves.sell.return_value = (None, "execution reverted")
+    pos = make_position(
+        half_eth=Decimal("0.0000065"), eth_spent=Decimal("0.00001"), peak_pnl_percent=35
+    )
+
+    sells = await run_monitor(halves, pos, price=1.0, liq=1.0)
+
+    halves.completed.assert_awaited_once_with("0xtoken", pnl=-35.0)
+    assert sells == ["🚨 $TKN · rug, sell failed · -35%"]

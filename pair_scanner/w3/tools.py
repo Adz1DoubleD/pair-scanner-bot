@@ -1,5 +1,6 @@
 import asyncio
 import time
+from decimal import Decimal
 
 import sentry_sdk
 from web3 import Web3
@@ -78,7 +79,7 @@ def _tx_fee(receipt):
     return receipt["gasUsed"] * receipt["effectiveGasPrice"] + l1_fee
 
 
-async def trade_result(conf, buy_tx, sell_tx):
+async def trade_result(conf, buy_tx, sell_tx, earlier_eth=None):
     if not buy_tx or not sell_tx:
         return None
     try:
@@ -102,7 +103,11 @@ async def trade_result(conf, buy_tx, sell_tx):
         ]
         if not withdrawals:
             return None
-        received = withdrawals[-1] - _tx_fee(sell_receipt)
+        received = (
+            withdrawals[-1]
+            - _tx_fee(sell_receipt)
+            + int(Decimal(str(earlier_eth or 0)) * 10**18)
+        )
 
         return {
             "eth_spent": spent / 10**18,

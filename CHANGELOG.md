@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.5.1...v0.6.0) (2026-11-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove the one-time copy from a host's database ([#32](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/32))
+
+### Features
+
+* remove the one-time copy from a host's database ([#32](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/32)) ([5d36e8e](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/5d36e8ea04ad8bf6c3f759379fe9d963125ec17d))
+
 ## [0.5.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v0.5.0...v0.5.1) (2026-11-18)
 
 

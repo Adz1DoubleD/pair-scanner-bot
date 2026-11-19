@@ -91,15 +91,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    if data in (
-        "scanner:menu",
-        "scanner:dashboard",
-        "scanner:home",
-        "scanner:balances",
-    ):
+    if data in ("scanner:menu", "scanner:dashboard", "scanner:balances"):
         if data == "scanner:menu":
             block = await menu_block()
-        elif data in ("scanner:dashboard", "scanner:home"):
+        elif data == "scanner:dashboard":
             block = await dashboard.handle_block(context)
         else:
             block = await balances_block()

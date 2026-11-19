@@ -1,8 +1,4 @@
 from ..settings import (
-    MODE_LIVE,
-    MODE_OFF,
-    MODE_WATCH,
-    MONITORS,
     OPTION_DEFAULTS,
     OPTIONS,
     option_value,
@@ -70,13 +66,6 @@ async def init_scanner_db():
                 )
             """)
 
-        await cur.execute("SHOW COLUMNS FROM positions LIKE 'half_eth'")
-        if not await cur.fetchone():
-            await cur.execute(
-                "ALTER TABLE positions ADD COLUMN half_eth DECIMAL(36, 18) "
-                "DEFAULT NULL AFTER eth_received"
-            )
-
         await cur.execute("SHOW TABLES LIKE 'scanner_settings'")
         if not await cur.fetchone():
             await cur.execute("""
@@ -88,42 +77,6 @@ async def init_scanner_db():
 
         await cur.execute("SELECT name, value FROM scanner_settings")
         rows = list(await cur.fetchall() or [])
-
-        saved = {row["name"]: row["value"] for row in rows}
-        old = ("mode", "trading_enabled", "pairs_enabled", "strategy_enabled")
-        if any(name in saved for name in old) and not any(
-            f"{m}_mode" in saved for m in MONITORS
-        ):
-            if "mode" in saved:
-                mode = int(float(saved["mode"]))
-            else:
-                trading = int(float(saved.get("trading_enabled", 0)))
-                mode = MODE_LIVE if trading else MODE_WATCH
-            for monitor in MONITORS:
-                default = "1" if OPTION_DEFAULTS[f"{monitor}_mode"] else "0"
-                enabled = int(float(saved.get(f"{monitor}_enabled", default)))
-                value = str(mode if enabled else MODE_OFF)
-                await cur.execute(
-                    "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
-                    (f"{monitor}_mode", value),
-                )
-                rows.append({"name": f"{monitor}_mode", "value": value})
-            await cur.execute(
-                "DELETE FROM scanner_settings WHERE name IN "
-                "('mode', 'trading_enabled', 'pairs_enabled', 'strategy_enabled')"
-            )
-
-        if "sell_alerts_enabled" in saved:
-            for name in ("profit_alerts_enabled", "loss_alerts_enabled"):
-                if name not in saved:
-                    await cur.execute(
-                        "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
-                        (name, saved["sell_alerts_enabled"]),
-                    )
-                    rows.append({"name": name, "value": saved["sell_alerts_enabled"]})
-            await cur.execute(
-                "DELETE FROM scanner_settings WHERE name = 'sell_alerts_enabled'"
-            )
 
     OPTIONS.clear()
     OPTIONS.update(OPTION_DEFAULTS)

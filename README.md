@@ -69,6 +69,8 @@ To look around before anything runs, set `MODE=off` first: both monitors start �
 
 Trading limits, audit thresholds, sell rules and schedules are changed in the bot under **⚙️ Settings** and saved in `scanner_settings`.
 
+Upgrading from 1.0 or 1.1: start 1.2 once first. It converts the old switches to a mode per monitor, splits the sell alerts switch, and adds the `half_eth` column; later versions no longer have those steps.
+
 ## Use it inside another bot
 
 ```python

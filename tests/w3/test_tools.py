@@ -4,11 +4,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from conftest import SAMPLE_ADDR, try_urls
 from web3 import Web3
 
 import pair_scanner.w3 as w3_core
 import pair_scanner.w3.tools as w3_tools
+from conftest import SAMPLE_ADDR, try_urls
 from pair_scanner.networks import (
     CHAINLINK_ABI,
     CHAINLINK_ETH_USD,

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
-from conftest import freeze_datetime, make_ctx, utc
 
 import pair_scanner.trading.monitors as auto
 import pair_scanner.trading.strategy as strategy
+from conftest import freeze_datetime, make_ctx, utc
 
 
 @pytest.fixture

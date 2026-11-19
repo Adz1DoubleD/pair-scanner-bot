@@ -79,35 +79,34 @@ def _tx_fee(receipt):
     return receipt["gasUsed"] * receipt["effectiveGasPrice"] + l1_fee
 
 
-async def trade_result(conf, buy_tx, sell_tx, earlier_eth=None):
-    if not buy_tx or not sell_tx:
+async def trade_result(conf, buy_tx, sell_tx=None, earlier_eth=None):
+    if not buy_tx:
         return None
     try:
         w3 = await open_w3(conf)
         weth = conf["weth"].lower()
         buy_tx = "0x" + buy_tx.removeprefix("0x")
-        sell_tx = "0x" + sell_tx.removeprefix("0x")
 
-        buy, buy_receipt, sell_receipt = await asyncio.gather(
+        buy, buy_receipt = await asyncio.gather(
             w3.eth.get_transaction(buy_tx),
             w3.eth.get_transaction_receipt(buy_tx),
-            w3.eth.get_transaction_receipt(sell_tx),
         )
         spent = buy["value"] + _tx_fee(buy_receipt)
+        received = int(Decimal(str(earlier_eth or 0)) * 10**18)
 
-        withdrawals = [
-            int.from_bytes(bytes(log["data"]), "big")
-            for log in sell_receipt["logs"]
-            if log["address"].lower() == weth
-            and "0x" + bytes(log["topics"][0]).hex() == WETH_WITHDRAWAL_TOPIC
-        ]
-        if not withdrawals:
-            return None
-        received = (
-            withdrawals[-1]
-            - _tx_fee(sell_receipt)
-            + int(Decimal(str(earlier_eth or 0)) * 10**18)
-        )
+        if sell_tx:
+            sell_receipt = await w3.eth.get_transaction_receipt(
+                "0x" + sell_tx.removeprefix("0x")
+            )
+            withdrawals = [
+                int.from_bytes(bytes(log["data"]), "big")
+                for log in sell_receipt["logs"]
+                if log["address"].lower() == weth
+                and "0x" + bytes(log["topics"][0]).hex() == WETH_WITHDRAWAL_TOPIC
+            ]
+            if not withdrawals:
+                return None
+            received += withdrawals[-1] - _tx_fee(sell_receipt)
 
         return {
             "eth_spent": spent / 10**18,

@@ -238,6 +238,53 @@ def test_the_bot_listens_for_its_buttons_close_and_blank():
         assert not re.match(pattern, data)
 
 
+STATS = {
+    "total": 3,
+    "monitors": {
+        "pairs": {
+            "found": 3,
+            "rejected": 1,
+            "watched": 2,
+            "bought": 0,
+            "closed": 0,
+            "avg_pnl": 0.0,
+            "wins": 0,
+            "eth_pnl": 0.0,
+            "eth_counted": 0,
+        },
+        "strategy": {
+            "found": 0,
+            "rejected": 0,
+            "watched": 0,
+            "bought": 0,
+            "closed": 0,
+            "avg_pnl": 0.0,
+            "wins": 0,
+            "eth_pnl": 0.0,
+            "eth_counted": 0,
+        },
+    },
+}
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shows_each_monitor_with_its_mode(monkeypatch):
+    import pair_scanner.blocks.scanner as scanner_screen
+
+    OPTIONS.update(pairs_mode=1, strategy_mode=0)
+    monkeypatch.setattr(
+        scanner_screen,
+        "pairs_get_stats",
+        AsyncMock(return_value=(STATS, None, None, None)),
+    )
+
+    text = (await scanner_screen.handle_block(None, brief=True))["text"]
+
+    assert "🤖 *Pairs* · 👀 Watch" in text
+    assert "Would buy: 2" in text
+    assert "Strategy" not in text
+
+
 @pytest.mark.asyncio
 async def test_dashboard_links_to_settings_and_back(monkeypatch):
     import pair_scanner.blocks.scanner as scanner_screen
@@ -245,7 +292,7 @@ async def test_dashboard_links_to_settings_and_back(monkeypatch):
     monkeypatch.setattr(
         scanner_screen,
         "pairs_get_stats",
-        AsyncMock(return_value=({"total": 3, "pulse_total": 3}, None, None, None)),
+        AsyncMock(return_value=(STATS, None, None, None)),
     )
     update, context = press("scanner:home")
     await pair_scanner.handle_button(update, context)

@@ -114,11 +114,6 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
             dead_threshold = float(s.get("dead_token_threshold", 2.0))
             half_at = float(s.get("half_sell_percent", 0) or 0)
             half_eth = pos.get("half_eth")
-            written_off = (
-                round((float(half_eth) / float(pos["eth_spent"]) - 1) * 100, 2)
-                if half_eth is not None and pos.get("eth_spent")
-                else -100.0
-            )
 
             should_sell = False
             is_rug = False
@@ -173,9 +168,12 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                     await pairs_mark_completed(token_addr, pnl=pnl)
                     sells.append(f"📝 ${symbol} · no tokens left, closed · {pnl:+.2f}%")
                 else:
-                    await pairs_mark_completed(token_addr, pnl=written_off)
+                    written_off = await trade_result(
+                        network_conf, pos.get("buy_tx"), earlier_eth=half_eth
+                    ) or {"pnl": -100.0}
+                    await pairs_mark_completed(token_addr, **written_off)
                     losses.append(
-                        f"☠️ ${symbol} · honeypot detected · {written_off:+g}%"
+                        f"☠️ ${symbol} · honeypot detected · {written_off['pnl']:+g}%"
                     )
                 continue
 
@@ -256,9 +254,14 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                         pid,
                         gp_data,
                     )
-                    await pairs_mark_completed(token_addr, pnl=written_off)
+                    written_off = await trade_result(
+                        network_conf, pos.get("buy_tx"), earlier_eth=half_eth
+                    ) or {"pnl": -100.0}
+                    await pairs_mark_completed(token_addr, **written_off)
                     held -= 1
-                    losses.append(f"💀 ${symbol} · unsellable · {written_off:+g}%")
+                    losses.append(
+                        f"💀 ${symbol} · unsellable · {written_off['pnl']:+g}%"
+                    )
                     continue
 
                 if error == "No token balance":
@@ -317,10 +320,13 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                             pid,
                             gp_data,
                         )
-                        await pairs_mark_completed(token_addr, pnl=written_off)
+                        written_off = await trade_result(
+                            network_conf, pos.get("buy_tx"), earlier_eth=half_eth
+                        ) or {"pnl": -100.0}
+                        await pairs_mark_completed(token_addr, **written_off)
                         held -= 1
                         losses.append(
-                            f"🚨 ${symbol} · rug, sell failed · {written_off:+g}%"
+                            f"🚨 ${symbol} · rug, sell failed · {written_off['pnl']:+g}%"
                         )
                         continue
 

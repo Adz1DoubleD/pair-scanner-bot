@@ -134,3 +134,21 @@ def test_live_eth_usd_price():
 
     _, answer, _, _, _ = round_data
     assert float(answer) / 1e8 > 100
+
+
+@pytest.mark.asyncio
+async def test_trade_result_without_a_sale_counts_the_buy_as_spent(monkeypatch):
+    w3 = SimpleNamespace(
+        eth=SimpleNamespace(
+            get_transaction=AsyncMock(return_value={"value": 10**13}),
+            get_transaction_receipt=AsyncMock(
+                return_value={"gasUsed": 0, "effectiveGasPrice": 0}
+            ),
+        )
+    )
+    monkeypatch.setattr(w3_tools, "open_w3", AsyncMock(return_value=w3))
+
+    result = await w3_tools.trade_result({"weth": SAMPLE_ADDR}, "abc")
+
+    assert result == {"eth_spent": 1e-05, "eth_received": 0.0, "pnl": -100.0}
+    w3.eth.get_transaction_receipt.assert_awaited_once()

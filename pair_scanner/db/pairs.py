@@ -194,16 +194,21 @@ async def pairs_get_stats(days=1):
         "monitoring": 0,
         "completed": 0,
         **{status: 0 for status in PAIR_STATUS},
-        "pulse_total": 0,
-        "pulse_passed": 0,
-        "pulse_completed": 0,
-        "pulse_rejected": 0,
-        "pulse_closed": 0,
-        "pulse_avg_pnl": 0.0,
-        "pulse_wins": 0,
-        "pulse_eth_pnl": 0.0,
-        "pulse_eth_counted": 0,
         "active_positions": 0,
+        "monitors": {
+            monitor: {
+                "found": 0,
+                "rejected": 0,
+                "watched": 0,
+                "bought": 0,
+                "closed": 0,
+                "avg_pnl": 0.0,
+                "wins": 0,
+                "eth_pnl": 0.0,
+                "eth_counted": 0,
+            }
+            for monitor in ("pairs", "strategy")
+        },
     }
 
     window = "{col} >= NOW() - INTERVAL %s DAY" if days else "1=1"
@@ -222,46 +227,50 @@ async def pairs_get_stats(days=1):
         await cur.execute(
             f"""
             SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN status IN ({rejection_placeholders}) THEN 1 ELSE 0 END) AS rejected
+                IF(source = 'strat', 'strategy', 'pairs') AS monitor,
+                COUNT(*) AS found,
+                SUM(status IN ({rejection_placeholders})) AS rejected,
+                SUM(status = 'watched') AS watched
             FROM pairs
             WHERE {window.format(col="found_at")}
+            GROUP BY monitor
             """,
             (*PAIR_STATUS, *window_args),
         )
-        res = await cur.fetchone()
-        if res:
-            stats_dict["pulse_total"] = int(res["total"] or 0)
-            stats_dict["pulse_rejected"] = int(res["rejected"] or 0)
+        for row in await cur.fetchall() or []:
+            stats_dict["monitors"][row["monitor"]].update(
+                found=int(row["found"] or 0),
+                rejected=int(row["rejected"] or 0),
+                watched=int(row["watched"] or 0),
+            )
 
-        await cur.execute(
-            f"SELECT COUNT(*) AS bought FROM positions WHERE {window.format(col='tracked_at')}",
-            window_args,
-        )
-        stats_dict["pulse_passed"] = int((await cur.fetchone())["bought"] or 0)
-
+        sold = f"x.status = 'completed' AND {window.format(col='x.last_updated')}"
         await cur.execute(
             f"""
             SELECT
-                COUNT(*)                                         AS closed,
-                AVG(pnl_percent)                                 AS avg_pnl,
-                SUM(CASE WHEN pnl_percent > 0 THEN 1 ELSE 0 END) AS wins,
-                SUM(eth_received - eth_spent)                    AS eth_pnl,
-                COUNT(eth_received - eth_spent)                  AS eth_counted
-            FROM positions
-            WHERE status = 'completed'
-              AND {window.format(col="last_updated")}
+                IF(p.source = 'strat', 'strategy', 'pairs') AS monitor,
+                SUM({window.format(col="x.tracked_at")}) AS bought,
+                SUM({sold}) AS closed,
+                AVG(CASE WHEN {sold} THEN x.pnl_percent END) AS avg_pnl,
+                SUM({sold} AND x.pnl_percent > 0) AS wins,
+                SUM(CASE WHEN {sold} THEN x.eth_received - x.eth_spent END) AS eth_pnl,
+                COUNT(CASE WHEN {sold} THEN x.eth_received - x.eth_spent END)
+                    AS eth_counted
+            FROM positions x
+            LEFT JOIN pairs p ON p.target_address = x.target_address
+            GROUP BY monitor
             """,
-            window_args,
+            window_args * 6,
         )
-        pnl_res = await cur.fetchone()
-        if pnl_res:
-            stats_dict["pulse_completed"] = int(pnl_res["closed"] or 0)
-            stats_dict["pulse_closed"] = int(pnl_res["closed"] or 0)
-            stats_dict["pulse_avg_pnl"] = float(pnl_res["avg_pnl"] or 0)
-            stats_dict["pulse_wins"] = int(pnl_res["wins"] or 0)
-            stats_dict["pulse_eth_pnl"] = float(pnl_res.get("eth_pnl") or 0)
-            stats_dict["pulse_eth_counted"] = int(pnl_res.get("eth_counted") or 0)
+        for row in await cur.fetchall() or []:
+            stats_dict["monitors"][row["monitor"]].update(
+                bought=int(row["bought"] or 0),
+                closed=int(row["closed"] or 0),
+                avg_pnl=float(row["avg_pnl"] or 0),
+                wins=int(row["wins"] or 0),
+                eth_pnl=float(row["eth_pnl"] or 0),
+                eth_counted=int(row["eth_counted"] or 0),
+            )
 
         await cur.execute(
             "SELECT COUNT(*) as active FROM positions WHERE status = 'monitoring'"

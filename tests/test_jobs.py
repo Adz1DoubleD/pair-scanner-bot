@@ -103,8 +103,8 @@ async def test_sell_alert(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_low_eth_switches_the_monitors_off_and_alerts(monkeypatch, jq):
-    OPTIONS.update(pairs_enabled=1, strategy_enabled=1)
+async def test_low_eth_switches_live_monitors_to_watch_and_alerts(monkeypatch, jq):
+    OPTIONS.update(pairs_mode=2, strategy_mode=0)
     monkeypatch.setattr(
         jobs,
         "scanner_health",
@@ -123,12 +123,12 @@ async def test_low_eth_switches_the_monitors_off_and_alerts(monkeypatch, jq):
 
     await jobs.send_health(c)
 
-    assert saved == [("pairs_enabled", 0), ("strategy_enabled", 0)]
-    assert jq.get_jobs_by_name("Pairs Monitor") == []
+    assert saved == [("pairs_mode", 1)]
+    assert len(jq.get_jobs_by_name("Pairs Monitor")) == 1
     assert jq.get_jobs_by_name("Strategy Monitor") == []
     assert len(jq.get_jobs_by_name("Sell Monitor")) == 1
     text = c.bot.send_message.await_args.kwargs["text"]
-    assert "LOW ETH BALANCE" in text and "Scanner & Strategy Disabled" in text
+    assert "LOW ETH BALANCE" in text and "Switched to Watch" in text
 
 
 @pytest.fixture(autouse=True)
@@ -196,7 +196,7 @@ async def test_healthy_runs_send_nothing(monkeypatch):
 
 
 def test_start_schedules_only_what_is_switched_on(jq):
-    OPTIONS.update(pairs_enabled=0, strategy_enabled=1, strategy_monitor_interval=30)
+    OPTIONS.update(pairs_mode=0, strategy_mode=1, strategy_monitor_interval=30)
     app = SimpleNamespace(job_queue=jq, bot_data={})
 
     jobs.start_jobs(app)
@@ -220,10 +220,10 @@ def test_changing_an_interval_reschedules_its_job(jq):
 
 
 def test_job_status_when_switched_off(jq):
-    OPTIONS["pairs_enabled"] = 0
+    OPTIONS["pairs_mode"] = 0
     app = SimpleNamespace(job_queue=jq)
 
-    assert jobs.job_status(app, "Pairs Monitor") == ("⏸️ Disabled", "--")
+    assert jobs.job_status(app, "Pairs Monitor") == ("⏸️ Off", "--")
     assert jobs.job_status(None, "Scanner Health") == ("Not Scheduled", "--")
 
 
@@ -254,8 +254,8 @@ async def test_a_database_alert_links_to_the_dashboard_when_set(monkeypatch, url
     assert rows[-1][0].callback_data == "cancel"
 
 
-def health_report(alerts, idle=False):
-    return AsyncMock(return_value={"alerts": alerts, "low_eth": False, "idle": idle})
+def health_report(alerts):
+    return AsyncMock(return_value={"alerts": alerts, "low_eth": False})
 
 
 @pytest.mark.asyncio
@@ -299,24 +299,24 @@ async def test_a_long_problem_gets_one_reminder(monkeypatch):
     once.bot.send_message.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_an_idle_scanner_sends_no_health_alerts(monkeypatch):
-    monkeypatch.setattr(
-        jobs, "scanner_health", health_report(["🔥 *Base RPC*: all down"], idle=True)
-    )
-    c = ctx("Scanner Health")
-
-    await jobs.send_health(c)
-
-    c.bot.send_message.assert_not_awaited()
-
-
-def test_off_schedules_nothing_and_watch_keeps_the_sell_monitor(jq):
-    OPTIONS.update(mode=0, pairs_enabled=1, strategy_enabled=1)
+def test_both_off_schedules_nothing(jq):
+    OPTIONS.update(pairs_mode=0, strategy_mode=0)
     app = SimpleNamespace(job_queue=jq, bot_data={})
     jobs.start_jobs(app)
     assert jq.calls == []
 
-    OPTIONS.update(mode=1, pairs_enabled=0, strategy_enabled=0)
-    jobs.start_jobs(app)
-    assert {c.name for c in jq.calls} == {"Sell Monitor", "Scanner Health"}
+
+def test_changing_a_mode_only_touches_the_jobs_it_affects(jq):
+    OPTIONS.update(pairs_mode=0, strategy_mode=1)
+    app = SimpleNamespace(job_queue=jq, bot_data={})
+    sell = jq.add_existing("Sell Monitor")
+    strategy = jq.add_existing("Strategy Monitor")
+    jq.add_existing("Scanner Health")
+
+    OPTIONS["strategy_mode"] = 2
+    jobs.apply_modes(app)
+    assert not sell.removed and not strategy.removed
+
+    OPTIONS["strategy_mode"] = 0
+    jobs.apply_modes(app)
+    assert sell.removed and strategy.removed

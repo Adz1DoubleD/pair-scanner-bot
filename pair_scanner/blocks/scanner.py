@@ -63,7 +63,9 @@ async def _block(context: ContextTypes.DEFAULT_TYPE, days=1, brief=False):
         else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
     )
     stat_text = (
-        f"*{title}* · {MODE_NAMES[current_mode()]}\n"
+        f"*{title}*\n"
+        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]} · "
+        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}\n\n"
         f" ├ Found: {stats.get('pulse_total', 0)}\n"
         f" ├ Rejected: {stats.get('pulse_rejected', 0)}\n"
         f" ├ Bought: {stats.get('pulse_passed', 0)}\n"

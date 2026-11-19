@@ -217,7 +217,7 @@ def scanner_settings(monkeypatch):
     }.items():
         monkeypatch.setattr(SETTINGS, name, value)
     OPTIONS.clear()
-    OPTIONS.update(OPTION_DEFAULTS, mode=2)
+    OPTIONS.update(OPTION_DEFAULTS, pairs_mode=2, strategy_mode=2)
     jobs.REPORTED.clear()
     yield SETTINGS
     OPTIONS.clear()

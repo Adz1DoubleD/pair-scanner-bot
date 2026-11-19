@@ -11,14 +11,21 @@ from .db.pairs import clear_archive, db_total_mb
 from .health import scanner_health
 from .helpers import close_kb
 from .monitors import run_pairs_monitor, run_sell_monitor, run_strategy_monitor
-from .settings import MODE_OFF, OPTIONS, SETTINGS, current_mode
+from .settings import (
+    MODE_LIVE,
+    MODE_OFF,
+    MODE_WATCH,
+    MONITORS,
+    OPTIONS,
+    SETTINGS,
+    current_mode,
+)
 from .watchers import watch_new_pairs, watch_pair_metadata
 
 application = None
 shares_host = False
 DEFAULT_INTERVAL_MINUTES = 60
 LIVE_FIRST_RUN_SECONDS = 60
-TRADING_FLAGS = ("pairs_enabled", "strategy_enabled")
 REMIND_AFTER = timedelta(hours=12)
 REPORTED = {}
 
@@ -135,20 +142,19 @@ async def send_health(context: ContextTypes.DEFAULT_TYPE):
         sentry_sdk.capture_exception(e)
 
     report = await scanner_health()
-    if report.get("idle"):
-        REPORTED.clear()
-        return
 
     events = list(cleaned)
     if report["low_eth"]:
-        for flag in TRADING_FLAGS:
+        for monitor in MONITORS:
+            if current_mode(monitor) != MODE_LIVE:
+                continue
             try:
-                await option_set(flag, 0)
+                await option_set(f"{monitor}_mode", MODE_WATCH)
             except Exception as e:
                 sentry_sdk.capture_exception(e)
-                OPTIONS[flag] = 0
-            apply_toggle(context.application, flag, enabled=False)
-        events.append("🤖 *Scanner & Strategy Disabled* — insufficient ETH balance")
+                OPTIONS[f"{monitor}_mode"] = MODE_WATCH
+        apply_modes(context.application)
+        events.append("👀 *Switched to Watch* — insufficient ETH balance")
 
     now = datetime.now(timezone.utc)
     current = {alert.split(":")[0]: alert for alert in report["alerts"]}
@@ -214,38 +220,36 @@ JOBS = {
     "New Pairs Watcher": {
         "kind": "loop",
         "callback": watch_new_pairs,
-        "flags": ("pairs_enabled",),
+        "monitor": "pairs",
     },
     "Pair Metadata Watcher": {
         "kind": "loop",
         "callback": watch_pair_metadata,
-        "flags": ("pairs_enabled",),
+        "monitor": "pairs",
     },
     "Pairs Monitor": {
         "kind": "repeating",
         "callback": send_buys,
-        "flags": ("pairs_enabled",),
+        "monitor": "pairs",
         "interval": "pairs_monitor_interval",
         "first": 240,
     },
     "Sell Monitor": {
         "kind": "repeating",
         "callback": send_sells,
-        "flags": (),
         "interval": "sell_monitor_interval",
         "first": 360,
     },
     "Strategy Monitor": {
         "kind": "repeating",
         "callback": send_buys,
-        "flags": ("strategy_enabled",),
+        "monitor": "strategy",
         "interval": "strategy_monitor_interval",
         "first": 480,
     },
     "Scanner Health": {
         "kind": "repeating",
         "callback": send_health,
-        "flags": (),
         "interval": "health_check_interval",
         "first": 600,
     },
@@ -267,9 +271,9 @@ def set_job(name, application, enabled=None, minutes=None, first=None):
             job.schedule_removal()
 
     if enabled is None:
-        enabled = current_mode() != MODE_OFF and (
-            not cfg["flags"]
-            or any(int(OPTIONS.get(f, 0) or 0) == 1 for f in cfg["flags"])
+        enabled = any(
+            current_mode(m) != MODE_OFF
+            for m in ((cfg["monitor"],) if cfg.get("monitor") else MONITORS)
         )
     if not enabled:
         return False
@@ -308,16 +312,14 @@ def set_job(name, application, enabled=None, minutes=None, first=None):
     return True
 
 
-def apply_toggle(application, flag, enabled):
+def apply_modes(application):
     running_tasks = {
         t.get_name() for t in application.bot_data.setdefault("scanner_bg_tasks", set())
     }
     for name, cfg in JOBS.items():
-        if flag not in cfg["flags"]:
-            continue
-        should_run = current_mode() != MODE_OFF and any(
-            enabled if f == flag else int(OPTIONS.get(f, 0) or 0) == 1
-            for f in cfg["flags"]
+        should_run = any(
+            current_mode(m) != MODE_OFF
+            for m in ((cfg["monitor"],) if cfg.get("monitor") else MONITORS)
         )
         if cfg["kind"] == "loop":
             running = name in running_tasks
@@ -351,9 +353,9 @@ async def stop_jobs(application):
 def job_status(application, job_name):
     jobs = application.job_queue.get_jobs_by_name(job_name) if application else []
     if not jobs or jobs[0].next_t is None:
-        flags = JOBS.get(job_name, {}).get("flags")
-        if flags and not any(int(OPTIONS.get(f, 0) or 0) == 1 for f in flags):
-            return "⏸️ Disabled", "--"
+        monitor = JOBS.get(job_name, {}).get("monitor")
+        if monitor and current_mode(monitor) == MODE_OFF:
+            return "⏸️ Off", "--"
         return "Not Scheduled", "--"
 
     tz = ZoneInfo(SETTINGS.timezone)

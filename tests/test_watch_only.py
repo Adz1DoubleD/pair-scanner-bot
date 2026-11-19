@@ -17,7 +17,7 @@ PAIR = {
 
 @pytest.fixture
 def watch_only():
-    OPTIONS["mode"] = 1
+    OPTIONS.update(pairs_mode=1, strategy_mode=1)
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_a_manual_buy_says_trading_is_off(passing_audit, watch_only):
 
     buy.assert_not_awaited()
     marks.assert_not_awaited()
-    assert "the scanner is in Watch" in result["text"]
+    assert "the Pairs Monitor is on 👀 Watch" in result["text"]
 
 
 @pytest.mark.asyncio
@@ -194,7 +194,7 @@ async def test_with_trading_on_watched_tokens_can_be_bought(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["execute_buy", "execute_sell"])
 async def test_test_mode_refuses_every_trade(monkeypatch, name):
-    OPTIONS["mode"] = 2
+    OPTIONS.update(pairs_mode=2, strategy_mode=2)
     monkeypatch.setattr(SETTINGS, "test_mode", True)
     monkeypatch.setattr(SETTINGS, "private_key", "0x" + "11" * 32)
     opened = AsyncMock()
@@ -220,9 +220,14 @@ async def test_a_sell_without_a_key_is_refused(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode,refused", [(0, True), (1, False), (2, False)])
-async def test_watch_still_sells_but_off_does_not(monkeypatch, mode, refused):
-    OPTIONS["mode"] = mode
+@pytest.mark.parametrize(
+    "pairs,strategy,refused",
+    [(0, 0, True), (1, 0, False), (0, 1, False), (2, 0, False)],
+)
+async def test_selling_runs_unless_both_monitors_are_off(
+    monkeypatch, pairs, strategy, refused
+):
+    OPTIONS.update(pairs_mode=pairs, strategy_mode=strategy)
     opened = AsyncMock(side_effect=RuntimeError("reached the chain"))
     monkeypatch.setattr(trade, "open_w3", opened)
 
@@ -235,3 +240,25 @@ async def test_watch_still_sells_but_off_does_not(monkeypatch, mode, refused):
     else:
         with pytest.raises(RuntimeError, match="reached the chain"):
             await trade.execute_sell({"chain_id": 8453}, dict(PAIR))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "monitor,error", [("pairs", None), ("strategy", "Watch mode: no buys")]
+)
+async def test_each_monitor_buys_only_in_its_own_live_mode(monkeypatch, monitor, error):
+    OPTIONS.update(pairs_mode=2, strategy_mode=1)
+    monkeypatch.setattr(SETTINGS, "private_key", "0x" + "11" * 32)
+    opened = AsyncMock(side_effect=RuntimeError("reached the chain"))
+    monkeypatch.setattr(trade, "open_w3", opened)
+
+    if error is None:
+        with pytest.raises(RuntimeError, match="reached the chain"):
+            await trade.execute_buy(
+                {"chain_id": 8453}, PAIR["target_address"], 1, monitor=monitor
+            )
+    else:
+        assert await trade.execute_buy(
+            {"chain_id": 8453}, PAIR["target_address"], 1, monitor=monitor
+        ) == (None, error)
+        opened.assert_not_awaited()

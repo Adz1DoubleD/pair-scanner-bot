@@ -62,17 +62,18 @@ async def test_all_well(chain):
     assert report["low_eth"] is False
     assert report["eth"] == 0.5
     assert "Net0: 🟢 1/1 up" in report["text"]
-    assert "Mode: 💰 Live" in report["text"]
+    assert "Pairs: 💰 Live" in report["text"]
+    assert "Strategy: 💰 Live" in report["text"]
 
 
 @pytest.mark.asyncio
-async def test_low_eth_is_flagged_only_while_monitors_run(chain):
+async def test_low_eth_is_flagged_only_while_a_monitor_is_live(chain):
     chain(balances=(0.001,))
     report = await health.scanner_health()
     assert report["low_eth"] is True
     assert any("LOW ETH BALANCE" in a for a in report["alerts"])
 
-    OPTIONS.update(pairs_enabled=0, strategy_enabled=0)
+    OPTIONS.update(pairs_mode=1, strategy_mode=0)
     chain(balances=(0.001,))
     report = await health.scanner_health()
     assert report["low_eth"] is False
@@ -106,10 +107,11 @@ async def test_rpc_outage_and_quiet_pairs_are_reported(chain):
 
 @pytest.mark.asyncio
 async def test_watch_only_is_shown(chain):
-    OPTIONS["mode"] = 1
+    OPTIONS.update(pairs_mode=1, strategy_mode=0)
     chain()
 
-    assert "Mode: 👀 Watch" in (await health.scanner_health())["text"]
+    text = (await health.scanner_health())["text"]
+    assert "Pairs: 👀 Watch" in text and "Strategy: ⏸️ Off" in text
 
 
 @pytest.mark.asyncio
@@ -127,7 +129,7 @@ async def test_checking_health_never_cleans_the_database(monkeypatch, chain):
 
 @pytest.mark.asyncio
 async def test_watch_only_never_alerts_about_eth(chain):
-    OPTIONS.update(mode=1, pairs_enabled=1)
+    OPTIONS.update(pairs_mode=1, strategy_mode=1)
     chain(balances=(0.001,))
 
     report = await health.scanner_health()

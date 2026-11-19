@@ -79,7 +79,9 @@ async def test_strategy_filters_by_liquidity_and_momentum(strat):
 
     assert "Fetched: `3` pools" in summary
     assert "Found: `1`" in summary
-    strat.buy.assert_awaited_once_with(strat.conf, "0xedge", 0.0001, "0xpair-edge")
+    strat.buy.assert_awaited_once_with(
+        strat.conf, "0xedge", 0.0001, "0xpair-edge", monitor="strategy"
+    )
 
 
 @pytest.mark.asyncio
@@ -94,7 +96,9 @@ async def test_strategy_uses_configured_thresholds_and_buy_amount(strat):
 
     await auto.run_strategy_monitor(make_ctx())
 
-    strat.buy.assert_awaited_once_with(strat.conf, "0xb", 0.5, "0xpair-b")
+    strat.buy.assert_awaited_once_with(
+        strat.conf, "0xb", 0.5, "0xpair-b", monitor="strategy"
+    )
 
 
 @pytest.mark.asyncio
@@ -186,7 +190,9 @@ async def test_strategy_keeps_going_past_rejections_to_fill_slots(strat):
 
     summary = (await auto.run_strategy_monitor(make_ctx()))["text"]
 
-    strat.buy.assert_awaited_once_with(strat.conf, "0xb", 0.0001, "0xpair-b")
+    strat.buy.assert_awaited_once_with(
+        strat.conf, "0xb", 0.0001, "0xpair-b", monitor="strategy"
+    )
     assert "🛡️ Passed: `1`" in summary
     assert "🛒 Bought: `1` (1/1 positions)" in summary
 

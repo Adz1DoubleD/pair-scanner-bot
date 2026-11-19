@@ -47,8 +47,8 @@ def test_setup_rejects_unknown_options():
 
 
 def test_new_installs_start_watch_only_with_cautious_limits():
-    assert OPTION_DEFAULTS["mode"] == 1
-    assert OPTION_DEFAULTS["strategy_enabled"] == 0
+    assert OPTION_DEFAULTS["pairs_mode"] == 1
+    assert OPTION_DEFAULTS["strategy_mode"] == 0
     assert OPTION_DEFAULTS["buy_amount_eth"] <= 0.001
     assert OPTION_DEFAULTS["max_positions"] <= 3
     assert OPTION_DEFAULTS["min_eth_balance"] > 0
@@ -60,7 +60,7 @@ def test_new_installs_start_watch_only_with_cautious_limits():
         ("max_positions", "4", 4),
         ("max_positions", "4.0", 4),
         ("buy_amount_eth", "0.002", 0.002),
-        ("mode", "2", 2),
+        ("pairs_mode", "2", 2),
         ("slippage", "not a number", 5.0),
         ("slippage", None, 5.0),
     ],

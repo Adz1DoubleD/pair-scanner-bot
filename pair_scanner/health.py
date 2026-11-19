@@ -10,6 +10,7 @@ from .settings import (
     MODE_LIVE,
     MODE_NAMES,
     MODE_OFF,
+    MONITORS,
     OPTIONS,
     SETTINGS,
     current_mode,
@@ -23,10 +24,7 @@ STARTED_AT = datetime.now(timezone.utc)
 
 
 async def scanner_health():
-    pairs_on = int(OPTIONS.get("pairs_enabled", 0) or 0) == 1
-    strategy_on = int(OPTIONS.get("strategy_enabled", 0) or 0) == 1
-    mode = current_mode()
-    trading_on = mode == MODE_LIVE
+    trading_on = any(current_mode(m) == MODE_LIVE for m in MONITORS)
     alerts = []
 
     try:
@@ -105,7 +103,7 @@ async def scanner_health():
     elif trading_on and failed and total_eth < minimum:
         alerts.append(f"⚠️ *ETH BALANCE UNKNOWN*: check failed for {', '.join(failed)}")
 
-    if pairs_on and mode != MODE_OFF:
+    if current_mode("pairs") != MODE_OFF:
         try:
             stats, _, _, last_scan = await pairs_get_stats(days=1)
         except Exception as e:
@@ -130,13 +128,20 @@ async def scanner_health():
                     f"📉 *LOW PAIRS PULSE*: no new pairs for {hours}h {minutes}m"
                 )
 
-    monitors = [
-        f"Pairs: {'🟢 ON' if pairs_on else '🔴 OFF'}",
-        f"Strategy: {'🟢 ON' if strategy_on else '🔴 OFF'}",
-        f"Mode: {MODE_NAMES[mode]}"
-        + (" (for this run)" if forced_mode() is not None else ""),
-        f"Open positions: {open_positions}",
-    ]
+    monitors = (
+        [
+            f"Pairs: {MODE_NAMES[current_mode('pairs')]}",
+            f"Strategy: {MODE_NAMES[current_mode('strategy')]}",
+        ]
+        + (
+            [f"Capped at {MODE_NAMES[forced_mode()]} for this run"]
+            if forced_mode() is not None
+            else []
+        )
+        + [
+            f"Open positions: {open_positions}",
+        ]
+    )
     wallet = [
         f"ETH: {total_eth:.4f}"
         if not failed
@@ -160,9 +165,8 @@ async def scanner_health():
     return {
         "text": text,
         "alerts": alerts,
-        "low_eth": eth_low and trading_on and (pairs_on or strategy_on),
+        "low_eth": eth_low and trading_on,
         "open_positions": open_positions,
-        "idle": not (pairs_on or strategy_on or open_positions),
         "eth": None if failed else total_eth,
         "db_problem": db_problem,
     }

@@ -43,7 +43,7 @@ async def test_a_new_database_gets_its_tables_and_safe_defaults(
     make_cursor, patch_session, capsys
 ):
     cur = patch_session(db.schema, fake_db(make_cursor))
-    OPTIONS["mode"] = 2
+    OPTIONS["pairs_mode"] = 2
 
     await db.init_scanner_db()
 
@@ -53,7 +53,7 @@ async def test_a_new_database_gets_its_tables_and_safe_defaults(
         f"{len(OPTION_DEFAULTS)} settings"
     ]
     assert OPTIONS == OPTION_DEFAULTS
-    assert OPTIONS["mode"] == 1
+    assert (OPTIONS["pairs_mode"], OPTIONS["strategy_mode"]) == (1, 0)
 
 
 @pytest.mark.asyncio
@@ -99,21 +99,55 @@ async def test_option_set_refuses_unknown_settings(make_cursor, patch_session):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("old,mode", [("1", 2), ("0", 1)])
-async def test_the_old_trading_switch_becomes_the_mode(
-    make_cursor, patch_session, old, mode
+@pytest.mark.parametrize(
+    "stored,pairs,strategy",
+    [
+        ({"trading_enabled": "1"}, 2, 0),
+        ({"trading_enabled": "0"}, 1, 0),
+        ({"trading_enabled": "1", "strategy_enabled": "1"}, 2, 2),
+        ({"trading_enabled": "1", "pairs_enabled": "0"}, 0, 0),
+        ({"pairs_enabled": "1", "strategy_enabled": "1"}, 1, 1),
+        ({"mode": "2", "pairs_enabled": "1", "strategy_enabled": "1"}, 2, 2),
+        ({"mode": "0", "pairs_enabled": "1"}, 0, 0),
+    ],
+)
+async def test_the_old_switches_become_a_mode_per_monitor(
+    make_cursor, patch_session, stored, pairs, strategy
 ):
     cur = patch_session(
         db.schema,
         fake_db(
             make_cursor,
             tables={"pairs", "positions", "scanner_settings"},
-            stored=[{"name": "trading_enabled", "value": old}],
+            stored=[{"name": k, "value": v} for k, v in stored.items()],
         ),
     )
 
     await db.init_scanner_db()
 
-    assert OPTIONS["mode"] == mode
-    sql = [c[0] for c in cur.calls]
-    assert "DELETE FROM scanner_settings WHERE name = 'trading_enabled'" in sql
+    assert (OPTIONS["pairs_mode"], OPTIONS["strategy_mode"]) == (pairs, strategy)
+    sql = [c for c in cur.calls if "scanner_settings" in c[0]]
+    assert (
+        "INSERT INTO scanner_settings (name, value) VALUES (%s, %s)",
+        ("pairs_mode", str(pairs)),
+    ) in sql
+    assert any(
+        c[0].startswith("DELETE FROM scanner_settings WHERE name IN") for c in sql
+    )
+
+
+@pytest.mark.asyncio
+async def test_saved_monitor_modes_are_not_migrated_again(make_cursor, patch_session):
+    cur = patch_session(
+        db.schema,
+        fake_db(
+            make_cursor,
+            tables={"pairs", "positions", "scanner_settings"},
+            stored=[{"name": "pairs_mode", "value": "0"}],
+        ),
+    )
+
+    await db.init_scanner_db()
+
+    assert OPTIONS["pairs_mode"] == 0
+    assert not any(c[0].startswith(("INSERT", "DELETE")) for c in cur.calls)

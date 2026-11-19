@@ -349,7 +349,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
     ]
     held = [p for p in positions if p.get("status") == "monitoring"]
     traded_addrs = {(p.get("target_address") or "").lower() for p in positions}
-    if current_mode() != MODE_LIVE:
+    if current_mode("strategy") != MODE_LIVE:
         traded_addrs |= {
             (p.get("target_address") or "").lower()
             for p in await pairs_get_by_status(status="watched", table="pairs") or []
@@ -431,7 +431,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
                 continue
 
             passed += 1
-            if current_mode() != MODE_LIVE:
+            if current_mode("strategy") != MODE_LIVE:
                 await pairs_strat_add(
                     token_addr, c["pair_addr"], c["symbol"], "watched"
                 )
@@ -441,7 +441,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
                 results.append(f"👀 {watched[-1]} · would buy")
                 continue
             tx_hash, buy_error = await execute_buy(
-                conf, token_addr, buy_amount, c["pair_addr"]
+                conf, token_addr, buy_amount, c["pair_addr"], monitor="strategy"
             )
             if not tx_hash:
                 failed.append(f"❌ {symbol} — {escape_markdown(buy_error)}")

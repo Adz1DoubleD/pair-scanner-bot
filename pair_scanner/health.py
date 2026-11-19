@@ -25,7 +25,12 @@ PAIRS_BACKLOG_LIMIT = 10
 STARTED_AT = datetime.now(timezone.utc)
 
 
-async def scanner_health():
+async def scanner_health() -> dict:
+    """Check the RPCs, wallet, database and monitors, without changing anything.
+
+    Returns "text" for a Health screen, "alerts" (empty when all is well),
+    "low_eth", "eth", "db_problem" and "open_positions".
+    """
     trading_on = any(current_mode(m) == MODE_LIVE for m in MONITORS)
     alerts = []
 

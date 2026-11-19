@@ -92,6 +92,7 @@ Inside a host, the bot token is optional. Without it, the scanner uses the host'
 - `scanner_block(context, brief=False)` is the scanner dashboard; `brief=True` gives a short summary for a daily message.
 - `balances_block(brief=False)` shows the wallet's balance on each network.
 - `scanner_health()` returns the RPC, wallet and monitor status as text, plus its alerts, so a host can show them in its own health check if it wants. It only reads: it never changes settings or cleans the database.
+- `scanner_modes()` returns each monitor's mode for this run, such as `{"pairs": "watch", "strategy": "off"}`, so a host can tell whether the scanner is doing anything.
 
 ## Development
 

@@ -7,7 +7,8 @@ from ..settings import SETTINGS
 from ..w3.tools import eth_balance_delta, fetch_eth_usd_price, fetch_network_bal
 
 
-async def balances_block(brief=False):
+async def balances_block(brief: bool = False) -> dict:
+    """The wallet's ETH balance on each network as a block."""
     eth_usd = await fetch_eth_usd_price()
 
     tasks = [

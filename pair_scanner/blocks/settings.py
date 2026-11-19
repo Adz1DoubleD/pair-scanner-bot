@@ -1,3 +1,5 @@
+"""The Settings screens: monitor modes, alert switches and number settings."""
+
 from decimal import Decimal
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -159,70 +161,9 @@ SELLING_NOTE = (
 )
 
 
-def settings_menu():
-    text = (
-        "⚙️ *Scanner Settings*\n\n"
-        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
-        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}"
-        + (
-            f"\n_Capped at {MODE_NAMES[forced_mode()]} for this run, by the "
-            "bot's start-up settings._"
-            if forced_mode() is not None
-            else ""
-        )
-        + "\n\nPick a section:"
-    )
-    kb = [
-        [InlineKeyboardButton(title, callback_data=f"scanner:settings:g:{g}")]
-        for g, (title, _) in GROUPS.items()
-    ]
-    kb.append([InlineKeyboardButton("🔙 Scanner", callback_data="scanner:home")])
-    return text, InlineKeyboardMarkup(kb)
-
-
-def group_screen(group, status=None):
-    title, names = GROUPS[group]
-    kb = []
-    for name in names:
-        label, unit = LABELS[name]
-        value = OPTIONS.get(name)
-        if name.endswith("_mode"):
-            monitor = name.removesuffix("_mode")
-            kb.append(
-                [
-                    InlineKeyboardButton(
-                        f"{label}: {MODE_NAMES[current_mode(monitor)]}",
-                        callback_data=f"scanner:settings:m:{monitor}",
-                    )
-                ]
-            )
-        elif name in TOGGLES:
-            shown = f"{'✅' if int(value) else '❌'} {label}"
-            kb.append(
-                [
-                    InlineKeyboardButton(
-                        shown, callback_data=f"scanner:settings:t:{name}"
-                    )
-                ]
-            )
-        else:
-            shown = f"{label}: {Decimal(str(value)).normalize():f} {unit}".rstrip()
-            kb.append(
-                [
-                    InlineKeyboardButton(
-                        f"✏️ {shown}", callback_data=f"scanner:settings:e:{name}"
-                    )
-                ]
-            )
-    kb.append([TO_SETTINGS])
-    text = (
-        f"{status}\n\n" if status else ""
-    ) + f"*{title}*\n\nTap a setting to change it."
-    return text, InlineKeyboardMarkup(kb)
-
-
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    assert context.user_data is not None
     bits = query.data.split(":")
     action = bits[2] if len(bits) > 2 else ""
     name = bits[3] if len(bits) > 3 else ""
@@ -230,7 +171,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "g" and name in GROUPS:
         await query.answer()
-        text, markup = group_screen(name)
+        text, markup = _group_screen(name)
 
     elif action == "m" and name in MONITORS:
         await query.answer()
@@ -243,9 +184,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             + f"\n\n{SELLING_NOTE}"
         )
-        if forced_mode() is not None:
+        forced = forced_mode()
+        if forced is not None:
             text += (
-                f"\n\n_This run is capped at {MODE_NAMES[forced_mode()]} by the "
+                f"\n\n_This run is capped at {MODE_NAMES[forced]} by the "
                 "bot's start-up settings, so a change here applies fully from the "
                 "next normal start._"
             )
@@ -317,13 +259,13 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "keep selling on your stop-loss and take-profit."
                 )
             await query.answer(f"{MODE_NAMES[target]} saved")
-            text, markup = group_screen("monitors", status=status)
+            text, markup = _group_screen("monitors", status=status)
 
     elif action == "t" and name in TOGGLES:
         turning_on = not int(OPTIONS.get(name, 0))
         await option_set(name, int(turning_on))
         await query.answer("✅ Saved")
-        text, markup = group_screen(GROUP_OF[name])
+        text, markup = _group_screen(GROUP_OF[name])
 
     elif action == "on" and name in MONITORS:
         if not SETTINGS.private_key:
@@ -333,7 +275,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if jobs.application is not None:
             jobs.apply_modes(jobs.application)
         await query.answer("💰 Live")
-        text, markup = group_screen(
+        text, markup = _group_screen(
             "monitors",
             status=f"{LABELS[f'{name}_mode'][0]}: {MODE_NAMES[MODE_LIVE]}, "
             f"{MODE_HELP[MODE_LIVE]}",
@@ -372,12 +314,15 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         await query.answer()
-        text, markup = settings_menu()
+        text, markup = _settings_menu()
 
     await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
 
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
+async def handle_text(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str
+) -> None:
+    assert context.user_data is not None
     name = context.user_data.pop("state").split(":")[2]
     chat_id = update.effective_chat.id
     msg_id = context.user_data.get("last_msg_id")
@@ -411,7 +356,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
         saved = await option_set(name, value)
         if name.endswith("_interval") and jobs.application is not None:
             jobs.apply_interval(jobs.application, name, float(saved))
-        reply, markup = group_screen(
+        reply, markup = _group_screen(
             GROUP_OF[name],
             status=f"✅ {label} set to `{Decimal(str(saved)).normalize():f}` {unit}".rstrip(),
         )
@@ -428,3 +373,68 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text):
         await context.bot.send_message(
             chat_id, reply, parse_mode="Markdown", reply_markup=markup
         )
+
+
+def _settings_menu() -> tuple[str, InlineKeyboardMarkup]:
+    forced = forced_mode()
+    text = (
+        "⚙️ *Scanner Settings*\n\n"
+        f"🤖 Pairs: {MODE_NAMES[current_mode('pairs')]}\n"
+        f"🧭 Strategy: {MODE_NAMES[current_mode('strategy')]}"
+        + (
+            f"\n_Capped at {MODE_NAMES[forced]} for this run, by the "
+            "bot's start-up settings._"
+            if forced is not None
+            else ""
+        )
+        + "\n\nPick a section:"
+    )
+    kb = [
+        [InlineKeyboardButton(title, callback_data=f"scanner:settings:g:{g}")]
+        for g, (title, _) in GROUPS.items()
+    ]
+    kb.append([InlineKeyboardButton("🔙 Scanner", callback_data="scanner:dashboard")])
+    return text, InlineKeyboardMarkup(kb)
+
+
+def _group_screen(
+    group: str, status: str | None = None
+) -> tuple[str, InlineKeyboardMarkup]:
+    title, names = GROUPS[group]
+    kb = []
+    for name in names:
+        label, unit = LABELS[name]
+        value = OPTIONS.get(name)
+        if name.endswith("_mode"):
+            monitor = name.removesuffix("_mode")
+            kb.append(
+                [
+                    InlineKeyboardButton(
+                        f"{label}: {MODE_NAMES[current_mode(monitor)]}",
+                        callback_data=f"scanner:settings:m:{monitor}",
+                    )
+                ]
+            )
+        elif name in TOGGLES:
+            shown = f"{'✅' if int(value or 0) else '❌'} {label}"
+            kb.append(
+                [
+                    InlineKeyboardButton(
+                        shown, callback_data=f"scanner:settings:t:{name}"
+                    )
+                ]
+            )
+        else:
+            shown = f"{label}: {Decimal(str(value)).normalize():f} {unit}".rstrip()
+            kb.append(
+                [
+                    InlineKeyboardButton(
+                        f"✏️ {shown}", callback_data=f"scanner:settings:e:{name}"
+                    )
+                ]
+            )
+    kb.append([TO_SETTINGS])
+    text = (
+        f"{status}\n\n" if status else ""
+    ) + f"*{title}*\n\nTap a setting to change it."
+    return text, InlineKeyboardMarkup(kb)

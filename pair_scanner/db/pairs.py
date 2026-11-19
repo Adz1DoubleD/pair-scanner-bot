@@ -1,9 +1,15 @@
+"""Reading and writing pairs and positions, and the dashboard stats."""
+
+from typing import Any
+
 from ..constants import PAIR_RETRY_ALWAYS, PAIR_RETRY_LIMITED, PAIR_STATUS
 from ..settings import OPTIONS
 from .core import db_session
 
 
-async def pairs_add(target_address, pair_address, network, decimals=18):
+async def pairs_add(
+    target_address: str, pair_address: str, network: str, decimals: int = 18
+) -> bool:
     async with db_session() as cur:
         await cur.execute(
             """
@@ -22,7 +28,7 @@ async def pairs_add(target_address, pair_address, network, decimals=18):
         return True
 
 
-async def pairs_update_metadata(address, symbol, decimals):
+async def pairs_update_metadata(address: str, symbol: str, decimals: int) -> None:
     async with db_session() as cur:
         await cur.execute(
             """
@@ -34,14 +40,14 @@ async def pairs_update_metadata(address, symbol, decimals):
         )
 
 
-async def pairs_mark_as_invalid(address):
+async def pairs_mark_as_invalid(address: str) -> None:
     async with db_session() as cur:
         await cur.execute(
             "UPDATE pairs SET status = 'invalid' WHERE target_address = %s", (address,)
         )
 
 
-async def pairs_get_for_audit():
+async def pairs_get_for_audit() -> list[dict[str, Any]]:
     cooldown = float(OPTIONS.get("audit_cooldown", 120))
     audit_limit = int(OPTIONS.get("auto_audit_max", 20))
     max_retries = int(OPTIONS.get("max_audits", 3))
@@ -84,7 +90,7 @@ async def pairs_get_for_audit():
         return combined if combined else []
 
 
-async def pairs_get_rejection_counts():
+async def pairs_get_rejection_counts() -> dict[str, int]:
     async with db_session() as cur:
         placeholders = ",".join(["%s"] * len(PAIR_STATUS))
         await cur.execute(
@@ -95,7 +101,7 @@ async def pairs_get_rejection_counts():
         return {row["status"]: row["count"] for row in rows} if rows else {}
 
 
-async def pairs_mark_audit_complete(address, final_status):
+async def pairs_mark_audit_complete(address: str, final_status: str) -> None:
     async with db_session() as cur:
         if final_status in PAIR_RETRY_LIMITED or final_status in PAIR_RETRY_ALWAYS:
             await cur.execute(
@@ -119,7 +125,7 @@ async def pairs_mark_audit_complete(address, final_status):
             )
 
 
-async def clear_archive():
+async def clear_archive() -> None:
     async with db_session() as cur:
         placeholders = ",".join(["%s"] * len(PAIR_STATUS))
         await cur.execute(
@@ -136,7 +142,7 @@ async def clear_archive():
         await cur.execute("OPTIMIZE TABLE pairs, positions")
 
 
-async def db_total_mb():
+async def db_total_mb() -> float:
     async with db_session() as cur:
         await cur.execute("SET SESSION information_schema_stats_expiry = 0")
         await cur.execute(
@@ -150,13 +156,13 @@ async def db_total_mb():
         return float((row or {}).get("mb") or 0)
 
 
-async def pairs_reset_db():
+async def pairs_reset_db() -> None:
     async with db_session() as cur:
         await cur.execute("TRUNCATE TABLE pairs")
         await cur.execute("TRUNCATE TABLE positions")
 
 
-async def pairs_get_status_count(status, table):
+async def pairs_get_status_count(status: str, table: str) -> int:
     async with db_session() as cur:
         await cur.execute(
             f"SELECT COUNT(*) as cnt FROM {table} WHERE status = %s", (status,)
@@ -165,16 +171,18 @@ async def pairs_get_status_count(status, table):
         return int(res["cnt"] or 0) if res else 0
 
 
-async def pairs_get_by_id(row_id, table_name):
+async def pairs_get_by_id(row_id: int | str, table_name: str) -> dict[str, Any] | None:
     async with db_session() as cur:
         await cur.execute(f"SELECT * FROM {table_name} WHERE id = %s", (row_id,))
         return await cur.fetchone()
 
 
-async def pairs_get_by_status(status, table, limit=None):
+async def pairs_get_by_status(
+    status: str | None, table: str, limit: int | None = None
+) -> list[dict[str, Any]]:
     async with db_session() as cur:
         query = f"SELECT * FROM {table}"
-        params = []
+        params: list[Any] = []
         if status:
             query += " WHERE status = %s"
             params.append(status.lower())
@@ -186,8 +194,15 @@ async def pairs_get_by_status(status, table, limit=None):
         return await cur.fetchall()
 
 
-async def pairs_get_stats(days=1):
-    stats_dict = {
+async def pairs_get_stats(
+    days: int = 1,
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+]:
+    stats_dict: dict[str, Any] = {
         "total": 0,
         "pending": 0,
         "awaiting": 0,
@@ -316,7 +331,13 @@ async def pairs_get_stats(days=1):
         return stats_dict, last_buy, last_sell, last_scan
 
 
-async def pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data=None):
+async def pairs_position_add(
+    entry: dict[str, Any],
+    metrics: dict[str, Any],
+    sec_status: str | None,
+    is_renounced: bool | None,
+    gp_data: dict[str, Any] | None = None,
+) -> int:
     p = float(metrics.get("price_eth") or 0)
     liq = float(metrics.get("liq_eth") or 0)
     m = float(metrics.get("mcap_eth") or 0)
@@ -375,16 +396,16 @@ async def pairs_position_add(entry, metrics, sec_status, is_renounced, gp_data=N
 
 
 async def pairs_position_update(
-    metrics,
-    pnl,
-    liq_drift,
-    sec_status,
-    is_renounced,
-    pos_id,
-    gp_data=None,
-    half_eth=None,
-    eth_spent=None,
-):
+    metrics: dict[str, Any],
+    pnl: float,
+    liq_drift: float,
+    sec_status: str | None,
+    is_renounced: bool | None,
+    pos_id: int,
+    gp_data: dict[str, Any] | None = None,
+    half_eth: float | None = None,
+    eth_spent: float | None = None,
+) -> None:
     async with db_session() as cur:
         query = """
             UPDATE positions
@@ -428,13 +449,13 @@ async def pairs_position_update(
 
 
 async def pairs_mark_completed(
-    address,
-    pnl=None,
-    sell_tx=None,
-    eth_spent=None,
-    eth_received=None,
-    status="completed",
-):
+    address: str,
+    pnl: float | None = None,
+    sell_tx: str | None = None,
+    eth_spent: float | None = None,
+    eth_received: float | None = None,
+    status: str = "completed",
+) -> None:
     async with db_session() as cur:
         if status == "completed":
             await cur.execute(
@@ -452,7 +473,7 @@ async def pairs_mark_completed(
         )
 
 
-async def pairs_mark_for_retry(address):
+async def pairs_mark_for_retry(address: str) -> None:
     async with db_session() as cur:
         await cur.execute(
             """
@@ -464,7 +485,13 @@ async def pairs_mark_for_retry(address):
         )
 
 
-async def pairs_strat_add(target_address, pair_address, symbol, status, network="Base"):
+async def pairs_strat_add(
+    target_address: str,
+    pair_address: str,
+    symbol: str,
+    status: str,
+    network: str = "Base",
+) -> None:
     async with db_session() as cur:
         await cur.execute(
             """

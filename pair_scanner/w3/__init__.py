@@ -1,5 +1,8 @@
+"""Web3 connections with RPC fallback, and pool type detection."""
+
 import asyncio
 import time
+from typing import Any
 
 from aiohttp import ClientSession, TCPConnector
 from web3 import AsyncHTTPProvider, AsyncWeb3, Web3
@@ -16,10 +19,10 @@ pool_fees: dict[str, int | None] = {}
 aero_pools: dict[str, bool | None] = {}
 
 
-async def get_w3_service(config):
+async def get_w3_service(config: dict[str, Any]) -> tuple[list[str], list[str]]:
     rpcs = [config["rpc"]] + config.get("rpc_fallbacks", [])
 
-    async def probe(rpc):
+    async def probe(rpc: dict[str, Any]) -> tuple[str, bool]:
         provider = AsyncHTTPProvider(rpc["url"], request_kwargs={"timeout": 5})
         await provider.cache_async_session(
             ClientSession(
@@ -54,7 +57,7 @@ async def get_w3_service(config):
     return lines, down
 
 
-async def close_w3():
+async def close_w3() -> None:
     for w3 in w3_cache.values():
         await w3.provider.disconnect()
     w3_cache.clear()
@@ -104,7 +107,17 @@ async def open_w3(conf: dict) -> AsyncWeb3:
     raise Exception("❌ All RPC endpoints failed")
 
 
-async def aero_stable(w3, conf, pair_addr):
+async def pool_kind(
+    w3: AsyncWeb3, conf: dict[str, Any], pair_addr: str | None
+) -> tuple[bool | None, int | None]:
+    stable = await _aero_stable(w3, conf, pair_addr)
+    fee = await _pool_fee(w3, pair_addr) if pair_addr and stable is None else None
+    return stable, fee
+
+
+async def _aero_stable(
+    w3: AsyncWeb3, conf: dict[str, Any], pair_addr: str | None
+) -> bool | None:
     factory = conf.get("aero_factory")
     if not factory or not pair_addr:
         return None
@@ -123,7 +136,7 @@ async def aero_stable(w3, conf, pair_addr):
     return aero_pools[key]
 
 
-async def pool_fee(w3, pair_addr):
+async def _pool_fee(w3: AsyncWeb3, pair_addr: str) -> int | None:
     key = pair_addr.lower()
     if key not in pool_fees:
         pool = w3.eth.contract(
@@ -134,9 +147,3 @@ async def pool_fee(w3, pair_addr):
         except (BadFunctionCallOutput, ContractLogicError):
             pool_fees[key] = None
     return pool_fees[key]
-
-
-async def pool_kind(w3, conf, pair_addr):
-    stable = await aero_stable(w3, conf, pair_addr)
-    fee = await pool_fee(w3, pair_addr) if pair_addr and stable is None else None
-    return stable, fee

@@ -1,5 +1,8 @@
+"""Small formatting and HTTP helpers shared across the scanner."""
+
 import re
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -11,19 +14,19 @@ from .settings import SETTINGS
 GECKO_POOLS = "https://api.geckoterminal.com/api/v2/networks/base/pools"
 
 
-def escape_markdown(text):
+def escape_markdown(text: object) -> str:
     escape_chars = r"_*[`"
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
 
 
-def to_float(v):
+def to_float(v: Any) -> float | None:
     try:
         return float(v) if v not in (None, "") else None
     except (ValueError, TypeError):
         return None
 
 
-def close_kb():
+def close_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton("❌ Close", callback_data="cancel")]]
     )
@@ -40,14 +43,14 @@ def format_balance(amount: float) -> str:
         return f"{amount:,.4f}"
 
 
-def format_duration(total_mins):
+def format_duration(total_mins: float) -> str:
     if not total_mins:
         return "0m"
     hours, mins = divmod(total_mins, 60)
     return f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
 
 
-def format_timestamp(date_val):
+def format_timestamp(date_val: Any) -> tuple[str, str]:
     if not date_val:
         return "???", "Never"
 
@@ -88,7 +91,12 @@ def format_timestamp(date_val):
     return date_str, age_str
 
 
-async def fetch(url, headers=None, params=None, timeout=5):
+async def fetch(
+    url: str,
+    headers: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
+    timeout: int = 5,
+) -> Any:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(

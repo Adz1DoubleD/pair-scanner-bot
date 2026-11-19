@@ -1,37 +1,42 @@
+"""The Pairs monitor and the position monitor that sells on your rules."""
+
 import asyncio
 from datetime import datetime, timezone
+from typing import Any
 
 import sentry_sdk
 from telegram.ext import ContextTypes
 
-from .db.pairs import (
+from ..db.pairs import (
     pairs_get_by_status,
     pairs_get_for_audit,
     pairs_get_status_count,
     pairs_mark_completed,
     pairs_position_update,
 )
-from .helpers import escape_markdown
-from .networks import (
+from ..helpers import escape_markdown
+from ..networks import (
     NETWORKS,
 )
-from .settings import OPTIONS
-from .w3.audit import (
+from ..settings import OPTIONS
+from ..w3.audit import (
     audit_pair,
     check_honeypot,
     get_security_audit,
     get_token_metrics,
 )
-from .w3.tools import (
+from ..w3.tools import (
     dex_name,
     trade_result,
 )
-from .w3.trade import execute_sell
+from ..w3.trade import execute_sell
 
-_NO_ENTRY_WARNED = set()
+_NO_ENTRY_WARNED: set[int] = set()
 
 
-async def run_pairs_monitor(context: ContextTypes.DEFAULT_TYPE):
+async def run_pairs_monitor(
+    context: ContextTypes.DEFAULT_TYPE | None,
+) -> dict[str, Any] | str:
     max_positions = int(OPTIONS.get("max_positions", 5))
     active_count = await pairs_get_status_count("monitoring", "positions")
     slots = max_positions - active_count
@@ -51,13 +56,15 @@ async def run_pairs_monitor(context: ContextTypes.DEFAULT_TYPE):
     return result
 
 
-async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
+async def run_sell_monitor(
+    context: ContextTypes.DEFAULT_TYPE | None,
+) -> dict[str, Any]:
     active_positions = await pairs_get_by_status(status="monitoring", table="positions")
     s = OPTIONS
-    sells = []
-    losses = []
-    paper = []
-    charts = []
+    sells: list[str] = []
+    losses: list[str] = []
+    paper: list[str] = []
+    charts: list[tuple[str, str]] = []
     held = len([p for p in active_positions or [] if isinstance(p, dict)])
     max_positions = int(s.get("max_positions", 5))
     active_positions = list(active_positions or []) + list(
@@ -71,16 +78,17 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
         if not isinstance(pos, dict):
             continue
 
-        pid = pos.get("id")
-        token_addr = pos.get("target_address")
+        pid = pos["id"]
+        token_addr = pos["target_address"]
         symbol = escape_markdown(pos.get("symbol") or "???")
         tracked_at = pos.get("tracked_at")
         has_tx = bool(pos.get("buy_tx"))
         is_paper = pos.get("status") == "paper"
 
         try:
-            network_key = pos.get("network", "Base")
-            network_conf = NETWORKS.get(network_key)
+            network_conf = NETWORKS.get(pos.get("network") or "Base")
+            if network_conf is None:
+                continue
 
             new_metrics = await get_token_metrics(pos, network_conf)
 
@@ -145,7 +153,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
             sec_status = pos.get("current_sec_status")
             is_renounced = pos.get("is_renounced")
             gp_data = None
-            is_safe = True
+            is_safe: bool | None = True
 
             try:
                 sec_status, is_renounced, gp_data = await get_security_audit(
@@ -392,7 +400,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
     }
 
 
-async def run_sell_all(context: ContextTypes.DEFAULT_TYPE):
+async def run_sell_all(context: ContextTypes.DEFAULT_TYPE | None) -> str:
     rows = await pairs_get_by_status(status=None, table="positions") or []
     seen = set()
     sold, skipped, failed = [], [], []

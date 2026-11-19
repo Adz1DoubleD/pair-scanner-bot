@@ -204,8 +204,8 @@ async def test_pool_fee_reads_v3_tier_and_caches(monkeypatch):
     call = AsyncMock(return_value=3000)
     w3 = fake_pool(call)
 
-    assert await w3_core.pool_fee(w3, SAMPLE_ADDR) == 3000
-    assert await w3_core.pool_fee(w3, SAMPLE_ADDR.lower()) == 3000
+    assert await w3_core._pool_fee(w3, SAMPLE_ADDR) == 3000
+    assert await w3_core._pool_fee(w3, SAMPLE_ADDR.lower()) == 3000
     call.assert_awaited_once()
 
 
@@ -214,7 +214,7 @@ async def test_pool_fee_is_none_for_v2_pairs(monkeypatch):
     monkeypatch.setattr(w3_core, "pool_fees", {})
     w3 = fake_pool(AsyncMock(side_effect=ContractLogicError("execution reverted")))
 
-    assert await w3_core.pool_fee(w3, SAMPLE_ADDR) is None
+    assert await w3_core._pool_fee(w3, SAMPLE_ADDR) is None
     assert w3_core.pool_fees == {SAMPLE_ADDR.lower(): None}
 
 
@@ -224,7 +224,7 @@ async def test_pool_fee_does_not_cache_network_errors(monkeypatch):
     w3 = fake_pool(AsyncMock(side_effect=TimeoutError("rpc down")))
 
     with pytest.raises(TimeoutError):
-        await w3_core.pool_fee(w3, SAMPLE_ADDR)
+        await w3_core._pool_fee(w3, SAMPLE_ADDR)
     assert w3_core.pool_fees == {}
 
 
@@ -253,8 +253,8 @@ async def test_aero_stable_reads_flag_for_aerodrome_pools_and_caches(
     factory = AsyncMock(return_value=AERO_FACTORY.lower())
     w3 = fake_aero_pool(factory, AsyncMock(return_value=stable))
 
-    assert await w3_core.aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is stable
-    assert await w3_core.aero_stable(w3, AERO_CONF, SAMPLE_ADDR.lower()) is stable
+    assert await w3_core._aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is stable
+    assert await w3_core._aero_stable(w3, AERO_CONF, SAMPLE_ADDR.lower()) is stable
     factory.assert_awaited_once()
 
 
@@ -264,7 +264,7 @@ async def test_aero_stable_is_none_for_uniswap_pools(monkeypatch):
     stable = AsyncMock()
     w3 = fake_aero_pool(AsyncMock(return_value=V2_FACTORY), stable)
 
-    assert await w3_core.aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is None
+    assert await w3_core._aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is None
     stable.assert_not_awaited()
     assert w3_core.aero_pools == {SAMPLE_ADDR.lower(): None}
 
@@ -278,7 +278,7 @@ async def test_aero_stable_is_none_when_factory_call_fails(monkeypatch, error):
     monkeypatch.setattr(w3_core, "aero_pools", {})
     w3 = fake_aero_pool(AsyncMock(side_effect=error))
 
-    assert await w3_core.aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is None
+    assert await w3_core._aero_stable(w3, AERO_CONF, SAMPLE_ADDR) is None
     assert w3_core.aero_pools == {SAMPLE_ADDR.lower(): None}
 
 
@@ -288,7 +288,7 @@ async def test_aero_stable_does_not_cache_network_errors(monkeypatch):
     w3 = fake_aero_pool(AsyncMock(side_effect=TimeoutError("rpc down")))
 
     with pytest.raises(TimeoutError):
-        await w3_core.aero_stable(w3, AERO_CONF, SAMPLE_ADDR)
+        await w3_core._aero_stable(w3, AERO_CONF, SAMPLE_ADDR)
     assert w3_core.aero_pools == {}
 
 
@@ -299,5 +299,5 @@ async def test_aero_stable_does_not_cache_network_errors(monkeypatch):
 async def test_aero_stable_skips_the_rpc_when_it_cannot_apply(conf, pair):
     w3 = SimpleNamespace(eth=SimpleNamespace(contract=MagicMock()))
 
-    assert await w3_core.aero_stable(w3, conf, pair) is None
+    assert await w3_core._aero_stable(w3, conf, pair) is None
     w3.eth.contract.assert_not_called()

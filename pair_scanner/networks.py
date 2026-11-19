@@ -1,12 +1,16 @@
+"""Chain settings and RPC endpoints for each network."""
+
+from typing import Any
+
 from .settings import SETTINGS
 
 
-def _rpcs(*entries):
+def _rpcs(*entries: dict[str, Any]) -> dict[str, Any]:
     usable = [e for e in entries if e]
     return {"rpc": usable[0], "rpc_fallbacks": usable[1:]}
 
 
-def build_networks():
+def _build_networks() -> dict[str, dict[str, Any]]:
     alchemy, ankr = SETTINGS.alchemy_api_key, SETTINGS.ankr_api_key
     return {
         "Ethereum": {
@@ -63,12 +67,12 @@ def build_networks():
     }
 
 
-NETWORKS = build_networks()
+NETWORKS = _build_networks()
 
 
-def refresh_networks():
+def refresh_networks() -> None:
     NETWORKS.clear()
-    NETWORKS.update(build_networks())
+    NETWORKS.update(_build_networks())
 
 
 ERC20_ABI = [

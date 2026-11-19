@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in the scanner doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste a private key, bot token, database URL or API key. Wallet and token addresses are fine.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set the Pairs Monitor to 👀 Watch
+        2. Tap ...
+    validations:
+      required: true
+  - type: dropdown
+    id: modes
+    attributes:
+      label: Monitor modes when it happened
+      options:
+        - Both Off
+        - Watch only
+        - At least one Live
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Any traceback from the terminal, with keys, tokens and URLs removed.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release you're running, e.g. 1.4.0.

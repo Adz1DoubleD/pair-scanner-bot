@@ -1,3 +1,5 @@
+"""Pair statuses, their labels and the stats periods."""
+
 PAIR_STATUSES = {
     "low-liquidity": ("Low Liquidity", "never"),
     "low-ratio": ("Low Ratio", "always"),

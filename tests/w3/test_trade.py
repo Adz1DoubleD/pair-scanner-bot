@@ -158,7 +158,7 @@ def test_aero_router_functions_resolve(fn):
 
 def test_aero_route_uses_the_aerodrome_factory():
     conf = NETWORKS["Base"]
-    assert w3_trade.aero_route(conf, "0xin", "0xout", True) == (
+    assert w3_trade._aero_route(conf, "0xin", "0xout", True) == (
         "0xin",
         "0xout",
         True,
@@ -173,7 +173,7 @@ def test_build_sign_aero_buy_tx():
     acct = Account.from_key(TEST_KEY)
     weth = Web3.to_checksum_address(conf["weth"])
     usdc = Web3.to_checksum_address(USDC_BASE)
-    routes = [w3_trade.aero_route(conf, weth, usdc, False)]
+    routes = [w3_trade._aero_route(conf, weth, usdc, False)]
 
     async def build():
         return (
@@ -213,7 +213,7 @@ def test_build_sign_aero_sell_tx():
     acct = Account.from_key(TEST_KEY)
     weth = Web3.to_checksum_address(conf["weth"])
     usdc = Web3.to_checksum_address(USDC_BASE)
-    routes = [w3_trade.aero_route(conf, usdc, weth, True)]
+    routes = [w3_trade._aero_route(conf, usdc, weth, True)]
 
     async def build():
         return (
@@ -251,7 +251,7 @@ def test_live_aero_getamountsout():
 
     async def call(w3):
         router = _aero_router(w3, conf)
-        routes = [w3_trade.aero_route(conf, weth, usdc, False)]
+        routes = [w3_trade._aero_route(conf, weth, usdc, False)]
         return await router.functions.getAmountsOut(10**15, routes).call()
 
     try:

@@ -176,7 +176,7 @@ def test_live_aero_pool_created_decode(monkeypatch):
         if not logs:
             return None
         parsed = parse_pair_created(logs[0])
-        return logs[0], parsed, await w3_core.aero_stable(w3, conf, parsed[2])
+        return logs[0], parsed, await w3_core._aero_stable(w3, conf, parsed[2])
 
     try:
         result = asyncio.run(try_urls(urls, fetch))

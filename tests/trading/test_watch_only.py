@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import pair_scanner.strategy as strategy
+import pair_scanner.trading.strategy as strategy
 import pair_scanner.w3.audit as audit
 import pair_scanner.w3.trade as trade
 from pair_scanner.settings import OPTIONS, SETTINGS

@@ -262,3 +262,30 @@ async def test_each_monitor_buys_only_in_its_own_live_mode(monkeypatch, monitor,
             {"chain_id": 8453}, PAIR["target_address"], 1, monitor=monitor
         ) == (None, error)
         opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_token_with_one_big_holder_is_rejected(passing_audit, monkeypatch):
+    marks, buy = passing_audit
+    monkeypatch.setattr(
+        audit,
+        "get_security_audit",
+        AsyncMock(
+            return_value=(
+                "clear",
+                True,
+                {
+                    "lp_locked_pct": 100,
+                    "buy_tax": 0,
+                    "sell_tax": 0,
+                    "top_holder_pct": 25,
+                },
+            )
+        ),
+    )
+
+    result = await audit.audit_pair(None, [dict(PAIR)])
+
+    buy.assert_not_awaited()
+    marks.assert_awaited_once_with(PAIR["target_address"], "whale")
+    assert "Big Holder" in result["text"]

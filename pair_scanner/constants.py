@@ -8,6 +8,7 @@ PAIR_STATUSES = {
     "metrics-rejected": ("Metrics", "limited"),
     "invalid": ("Invalid", "limited"),
     "lp-unlocked": ("LP Unlocked", "limited"),
+    "whale": ("Big Holder", "limited"),
 }
 
 PAIR_STATUS = list(PAIR_STATUSES)

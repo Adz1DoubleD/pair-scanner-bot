@@ -357,3 +357,39 @@ async def test_fetch_candidates_includes_aerodrome_pools(monkeypatch):
 
     assert err is None
     assert [(c["symbol"], c["pair_addr"]) for c in out] == [("AAA", "0xaero")]
+
+
+@pytest.mark.asyncio
+async def test_top_holder_ignores_pools_lockers_and_burns(monkeypatch):
+    token = "0x" + "ab" * 20
+    holders = [
+        {"address": "0x" + "01" * 20, "percent": "0.60", "is_contract": 1},
+        {"address": "0x" + "02" * 20, "percent": "0.20", "is_locked": 1},
+        {"address": "0x000000000000000000000000000000000000dead", "percent": "0.10"},
+        {"address": "0x" + "03" * 20, "percent": "0.05", "tag": "Exchange"},
+        {"address": "0x" + "04" * 20, "percent": "0.03"},
+    ]
+    body = {
+        "result": {
+            token: {"is_open_source": "1", "owner_address": "", "holders": holders}
+        }
+    }
+
+    class Client:
+        def __init__(self, **_):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def get(self, url):
+            return type("R", (), {"json": lambda self: body})()
+
+    monkeypatch.setattr(w3_audit.httpx, "AsyncClient", Client)
+
+    _, _, gp = await w3_audit.get_security_audit(token, 8453)
+
+    assert gp["top_holder_pct"] == pytest.approx(3.0)

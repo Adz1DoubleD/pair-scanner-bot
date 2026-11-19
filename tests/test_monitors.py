@@ -283,6 +283,13 @@ async def test_strategy_records_successful_buy(strat):
                 return_value=("clear", True, {"sell_tax": 0.25})
             ),
         ),
+        (
+            "Big Holder (40% in one wallet)",
+            "whale",
+            lambda m: m.audit.configure_mock(
+                return_value=("clear", True, {"sell_tax": 0.0, "top_holder_pct": 40})
+            ),
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -399,6 +406,7 @@ def mon(monkeypatch):
             "stop_loss_percent": 20,
             "rug_liq_threshold": 30,
             "trailing_stop_percent": 20,
+            "trailing_start_percent": 20,
             "dead_token_hours": 1,
             "dead_token_threshold": 2.0,
         },
@@ -483,6 +491,7 @@ async def test_monitor_skips_rows_that_are_not_dicts(mon):
         ({}, 1.5, 10.0),
         ({}, 0.8, 10.0),
         ({"peak_pnl_percent": 60}, 1.35, 10.0),
+        ({"peak_pnl_percent": 40}, 1.15, 10.0),
         ({}, 1.0, 6.0),
         ({}, 1.0, 7.0),
         ({"tracked_at": utc(2026, 10, 18, 7)}, 1.0, 10.0),
@@ -492,6 +501,7 @@ async def test_monitor_skips_rows_that_are_not_dicts(mon):
         "take-profit",
         "stop-loss",
         "trailing-stop",
+        "trailing-stop-before-take-profit",
         "rug",
         "rug-at-threshold",
         "dead-token",
@@ -516,7 +526,7 @@ async def test_monitor_sells_and_completes_on_exit_signal(mon, over, price, liq)
         ({}, 1.49, 10.0),
         ({}, 0.81, 10.0),
         ({"peak_pnl_percent": 60}, 1.45, 10.0),
-        ({"peak_pnl_percent": 40}, 1.15, 10.0),
+        ({"peak_pnl_percent": 15}, 0.9, 10.0),
         ({}, 1.0, 7.1),
         ({"tracked_at": utc(2026, 10, 18, 7), "peak_pnl_percent": 5}, 1.0, 10.0),
         ({"tracked_at": utc(2026, 10, 18, 7)}, 1.02, 10.0),
@@ -527,7 +537,7 @@ async def test_monitor_sells_and_completes_on_exit_signal(mon, over, price, liq)
         "just-under-take-profit",
         "just-above-stop-loss",
         "trailing-not-triggered",
-        "peak-below-take-profit",
+        "peak-below-trailing-start",
         "liq-just-above-rug",
         "old-but-had-a-peak",
         "old-but-price-moved",

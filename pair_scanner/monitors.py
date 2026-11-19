@@ -107,6 +107,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
             sl_trigger = float(s.get("stop_loss_percent", 20))
             rug_trigger = float(s.get("rug_liq_threshold", 30))
             trailing_sl = float(s.get("trailing_stop_percent", 20))
+            trailing_start = float(s.get("trailing_start_percent", 20))
             peak_pnl = float(pos.get("peak_pnl_percent") or 0)
             dead_hours = float(s.get("dead_token_hours", 1))
             dead_threshold = float(s.get("dead_token_threshold", 2.0))
@@ -183,7 +184,7 @@ async def run_sell_monitor(context: ContextTypes.DEFAULT_TYPE):
                 reason = "take-profit"
             elif pnl <= -sl_trigger:
                 reason = "stop-loss"
-            elif peak_pnl >= tp_trigger and (peak_pnl - pnl) >= trailing_sl:
+            elif peak_pnl >= trailing_start and (peak_pnl - pnl) >= trailing_sl:
                 reason = "trailing-stop"
             should_sell = reason is not None
 
@@ -341,6 +342,7 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
     min_momentum = float(s.get("strat_min_momentum_h1", 3.0))
     max_positions = int(s.get("max_positions", 5))
     buy_amount = float(s.get("buy_amount_eth", 0.0001))
+    max_holder = float(s.get("max_top_holder_pct", 10))
 
     positions = [
         p
@@ -420,6 +422,9 @@ async def run_strategy_monitor(context: ContextTypes.DEFAULT_TYPE):
                 status, detail = sec_status, ""
             elif tax_pct > 10:
                 status, detail = "high-tax", f"{tax_pct:.0f}% sell tax"
+            elif gp_data.get("top_holder_pct", 0) > max_holder:
+                status = "whale"
+                detail = f"{gp_data['top_holder_pct']:.0f}% in one wallet"
             else:
                 status, detail = None, ""
 

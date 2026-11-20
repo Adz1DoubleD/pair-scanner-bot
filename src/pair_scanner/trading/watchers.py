@@ -28,7 +28,9 @@ async def watch_new_pairs() -> None:
     network_name = "Base"
     conf = NETWORKS[network_name]
     BUFFER = 2
-    MAX_BLOCK_RANGE = 1000
+    MAX_BLOCK_RANGE = 10
+    REPORT_AFTER_FAILURES = 30
+    failures = 0
     factories = [
         f
         for f in (
@@ -72,11 +74,13 @@ async def watch_new_pairs() -> None:
                                 target = t1 if t0.lower() == weth else t0
                                 await pairs_add(target, pair, network_name)
 
+                    last_block = to_block
                     from_block = to_block + 1
 
-                last_block = current_block
+            failures = 0
 
         except Exception as e:
+            failures += 1
             is_timeout = (
                 isinstance(e, (asyncio.TimeoutError, TimeoutError))
                 or "timeout" in str(e).lower()
@@ -87,7 +91,8 @@ async def watch_new_pairs() -> None:
             )
             is_bad_request = "Bad Request" in str(e)
 
-            if not (is_timeout or is_rpc_sync or is_server_error or is_bad_request):
+            transient = is_timeout or is_rpc_sync or is_server_error or is_bad_request
+            if not transient or failures == REPORT_AFTER_FAILURES:
                 sentry_sdk.capture_exception(e)
 
             await asyncio.sleep(10)

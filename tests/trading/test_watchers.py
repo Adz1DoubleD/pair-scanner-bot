@@ -202,3 +202,65 @@ async def test_watcher_ignores_aerodrome_pools_without_weth(watcher):
     _, added = await watcher(logs=[aero_log(NEW_TOKEN, other, NEW_POOL)])
 
     added.assert_not_awaited()
+
+
+class _MovingEth(_WatchEth):
+    def __init__(self, tips):
+        super().__init__(tips[0], [])
+        self.tips = iter(tips)
+
+    @property
+    def block_number(self):
+        async def tip():
+            return next(self.tips)
+
+        return tip()
+
+
+def _run_watcher(monkeypatch, eth, loops):
+    capture = MagicMock()
+    monkeypatch.setattr(auto, "pairs_add", AsyncMock())
+    monkeypatch.setattr(auto, "sentry_sdk", SimpleNamespace(capture_exception=capture))
+    monkeypatch.setattr(
+        auto,
+        "asyncio",
+        SimpleNamespace(
+            sleep=AsyncMock(side_effect=[None] * (loops - 1) + [_StopLoop()]),
+            TimeoutError=TimeoutError,
+        ),
+    )
+    monkeypatch.setattr(auto, "NETWORKS", {"Base": WATCH_CONF})
+    monkeypatch.setattr(
+        auto, "open_w3", AsyncMock(return_value=SimpleNamespace(eth=eth))
+    )
+    return capture
+
+
+@pytest.mark.asyncio
+async def test_watcher_catches_up_in_ten_block_steps(monkeypatch):
+    eth = _MovingEth([100, 135])
+    _run_watcher(monkeypatch, eth, loops=2)
+
+    with pytest.raises(_StopLoop):
+        await auto.watch_new_pairs()
+
+    ranges = [
+        (c.args[0]["fromBlock"], c.args[0]["toBlock"])
+        for c in eth.get_logs.await_args_list
+    ]
+    assert ranges == [(98, 98), (99, 108), (109, 118), (119, 128), (129, 133)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("loops,reported", [(29, 0), (30, 1), (40, 1)])
+async def test_watcher_reports_a_request_that_keeps_failing(
+    monkeypatch, loops, reported
+):
+    eth = _WatchEth(100, [])
+    eth.get_logs.side_effect = ValueError("400 Bad Request")
+    capture = _run_watcher(monkeypatch, eth, loops=loops)
+
+    with pytest.raises(_StopLoop):
+        await auto.watch_new_pairs()
+
+    assert capture.call_count == reported

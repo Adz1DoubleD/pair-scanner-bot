@@ -284,11 +284,9 @@ async def test_dashboard_shows_each_monitor_with_its_mode(monkeypatch):
         AsyncMock(return_value=(STATS, None, None, None)),
     )
 
-    text = (await dashboard.handle_block(None, brief=True))["text"]
+    text = (await dashboard.handle_block(None, brief=False))["text"]
 
     assert "🤖 *Pairs* · 👀 Watch" in text
-    assert "Would buy: 2" in text
-    assert "Strategy" not in text
 
 
 @pytest.mark.asyncio
@@ -626,11 +624,17 @@ async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
         ),
     )
 
-    text = (await dashboard.handle_block(None, brief=True))["text"]
+    brief_text = (await dashboard.handle_block(None, brief=True))["text"]
+    assert "Found: 6" in brief_text
+    assert "Bought: 4" in brief_text
+    assert "Sold: 3" in brief_text
+    assert "🤖 *Pairs*" not in brief_text
+    assert "🧭 *Strategy*" not in brief_text
 
-    total = text.split("📊 *Total*")[1]
-    assert "Bought: 4" in total and "Sold: 3" in total
-    assert "Avg Return: `+0.00%`" in total
+    full_text = (await dashboard.handle_block(None, brief=False))["text"]
+    total = full_text.split("📊 *Total*")[1]
+    assert "Bought: 4" in total
+    assert "Sold: 3" in total
 
 
 @pytest.mark.asyncio

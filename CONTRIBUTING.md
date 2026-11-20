@@ -9,9 +9,10 @@ Thanks for helping. To get a copy running, follow [Run it on its own](README.md#
 3. Run the checks before pushing:
    ```bash
    pre-commit run --all-files
+   mypy src
    pytest
    ```
-   `pre-commit` runs Ruff, mypy and the file-size check.
+   `pre-commit` runs Ruff and the file-size check; mypy checks the types.
 4. Start each commit message with a type, which decides the next version:
    - `fix: ...` for a bug fix (1.0.0 → 1.0.1)
    - `feat: ...` for something new (1.0.0 → 1.1.0)
@@ -49,7 +50,7 @@ The package lives in `src/pair_scanner/`, and the tests run against the installe
 
 ## Code style
 
-- Ruff handles linting and formatting, and mypy checks types (`pre-commit` runs both).
+- Ruff handles linting and formatting (`pre-commit` runs it, installing its own copy, so it works without the virtual environment active). mypy checks types in CI; run `mypy src` before pushing.
 - Every function has type hints. Every file starts with a one-line docstring saying what it's for, and the public functions in `__all__` have a short docstring. Other code has no comments; explain the why in the pull request.
 - A leading `_` marks a function used only inside its own file. Public functions come first, then the `_` helpers.
 - Keep logic inline where it is used rather than adding small helper functions.

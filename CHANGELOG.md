@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.0...v1.4.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* refactor(dashboard): simplify stat_text generation and improve brief mode handling ([062e182](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/062e182003a8e6560ef12a82782287618c9fddbc))
+
 ## [1.4.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.3.0...v1.4.0) (2026-11-19)
 
 

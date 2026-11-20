@@ -289,12 +289,7 @@ async def _block(
         format_timestamp(last_sell["found_at"]) if last_sell else (None, "Never")
     )
 
-    title = (
-        "🤖 Token Scanner"
-        if brief
-        else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
-    )
-    stat_text = "" if brief else f"*{title}*\n\n"
+    stat_text = "" if brief else f"*🤖 Token Scanner - {STATS_PERIODS[days]} Stats*\n\n"
     shown = [
         (f"{heading} · {MODE_NAMES[current_mode(monitor)]}", stats["monitors"][monitor])
         for monitor, heading in (("pairs", "🤖 *Pairs*"), ("strategy", "🧭 *Strategy*"))
@@ -318,7 +313,7 @@ async def _block(
         shown.append(("📊 *Total*", total))
 
     if brief and shown:
-        shown = [shown[-1]]
+        shown = [("🤖 *Token Scanner*", shown[-1][1])]
 
     eth_usd = (
         await fetch_eth_usd_price() if any(m["eth_counted"] for _, m in shown) else 0

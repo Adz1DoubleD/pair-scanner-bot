@@ -625,6 +625,8 @@ async def test_dashboard_adds_a_total_when_both_monitors_show(monkeypatch):
     )
 
     brief_text = (await dashboard.handle_block(None, brief=True))["text"]
+    assert brief_text.startswith("🤖 *Token Scanner*\n")
+    assert "Total" not in brief_text
     assert "Found: 6" in brief_text
     assert "Bought: 4" in brief_text
     assert "Sold: 3" in brief_text
@@ -663,4 +665,5 @@ async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
 
     text = (await dashboard.handle_block(None, brief=True))["text"]
 
+    assert text.startswith("🤖 *Token Scanner*\n")
     assert "Would have made: `+12.50%` (3/4 up)" in text

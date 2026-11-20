@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.4](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.3...v1.4.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* head the brief dashboard summary '🤖 Token Scanner' ([#68](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/68)) ([33233f9](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/33233f9d555929c4bb28ce7a3e2e1df19de1ca86))
+* keep the pairs watcher within free RPC log limits ([#71](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/71)) ([7dda8a7](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/7dda8a79b64a932d44dc949e5bc52164e6b59286))
+
 ## [1.4.3](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.2...v1.4.3) (2026-11-20)
 
 

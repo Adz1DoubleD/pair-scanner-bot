@@ -62,6 +62,6 @@ Releases are prepared by [release-please](https://github.com/googleapis/release-
 
 1. Every merge to `main` updates a "chore(main): release X.Y.Z" pull request. It works out the next version from the commit types since the last release, bumps `version` in `pyproject.toml` and writes `CHANGELOG.md`.
 2. When it's time to release, the maintainer merges that pull request once CI passes. release-please opens it as the repo's release GitHub App (`RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` secrets), so CI runs on it like any other pull request.
-3. The merge tags `vX.Y.Z`, creates the GitHub release, runs the tests, builds, and waits for the maintainer to approve the `pypi` deployment before uploading to [PyPI](https://pypi.org/project/pair-scanner-bot/).
+3. The merge tags `vX.Y.Z` and creates the GitHub release. The tag then runs the tests, builds, and waits for the maintainer to approve the `pypi` deployment before uploading to [PyPI](https://pypi.org/project/pair-scanner-bot/).
 
 A version number can only be published once. Hosts pin a version, so nothing reaches a live bot until a host moves to the new release.

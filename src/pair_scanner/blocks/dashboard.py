@@ -294,7 +294,7 @@ async def _block(
         if brief
         else f"🤖 Token Scanner - {STATS_PERIODS[days]} Stats"
     )
-    stat_text = f"*{title}*\n\n"
+    stat_text = "" if brief else f"*{title}*\n\n"
     shown = [
         (f"{heading} · {MODE_NAMES[current_mode(monitor)]}", stats["monitors"][monitor])
         for monitor, heading in (("pairs", "🤖 *Pairs*"), ("strategy", "🧭 *Strategy*"))

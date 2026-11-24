@@ -122,10 +122,12 @@ async def run_strategy_monitor(
                 status, detail = "metrics-rejected", "pool can't be read"
             elif onchain_usd < min_liq_usd:
                 status, detail = "low-liquidity", f"${onchain_usd:,.0f} in the pool"
-            elif sellable is not True:
+            elif sellable is False:
                 status, detail = "honey-pot", "can't sell"
             elif is_safe is not True:
                 status, detail = "honey-pot", "honeypot.is"
+            elif sellable is None:
+                status, detail = "sell-unchecked", "couldn't check the sale"
             elif gp_data is None:
                 status, detail = "no-data", ""
             elif sec_status != "clear":

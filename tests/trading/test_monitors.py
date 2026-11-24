@@ -265,6 +265,11 @@ async def test_strategy_records_successful_buy(strat):
             lambda m: m.simulate.configure_mock(return_value=False),
         ),
         (
+            "Sell Check Failed (couldn't check the sale)",
+            "sell-unchecked",
+            lambda m: m.simulate.configure_mock(return_value=None),
+        ),
+        (
             "Honeypot (honeypot.is)",
             "honey-pot",
             lambda m: m.honeypot.configure_mock(return_value=False),

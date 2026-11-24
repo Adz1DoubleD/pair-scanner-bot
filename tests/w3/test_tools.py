@@ -152,3 +152,59 @@ async def test_trade_result_without_a_sale_counts_the_buy_as_spent(monkeypatch):
 
     assert result == {"eth_spent": 1e-05, "eth_received": 0.0, "pnl": -100.0}
     w3.eth.get_transaction_receipt.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,marked", [(429, True), (500, False)])
+async def test_a_rate_limited_rpc_is_marked_as_failed(monkeypatch, status, marked):
+    sessions = []
+
+    class FakeProvider:
+        def __init__(self, url, request_kwargs):
+            pass
+
+        async def cache_async_session(self, session):
+            sessions.append(session)
+
+    class FakeEth:
+        @property
+        def block_number(self):
+            async def tip():
+                return 1
+
+            return tip()
+
+    conf = {"rpc": {"url": "https://rpc.test", "name": "Test"}, "rpc_fallbacks": []}
+    monkeypatch.setattr(w3_core, "AsyncHTTPProvider", FakeProvider)
+    monkeypatch.setattr(w3_core, "AsyncWeb3", lambda p: SimpleNamespace(eth=FakeEth()))
+    monkeypatch.setattr(w3_core, "NETWORKS", {"Base": conf})
+    monkeypatch.setattr(w3_core, "w3_cache", {})
+    monkeypatch.setattr(w3_core, "rpc_failed", {})
+    monkeypatch.setattr(w3_core, "rpc_working", {})
+
+    await w3_core.open_w3(conf)
+    session = sessions[0]
+    raised = RuntimeError(f"HTTP {status}")
+
+    def fail():
+        raise raised
+
+    with pytest.raises(RuntimeError):
+        await session._raise_for_status(
+            SimpleNamespace(status=status, raise_for_status=fail)
+        )
+    await session.close()
+
+    assert ("https://rpc.test" in w3_core.rpc_failed) is marked
+
+
+def test_escape_markdown_hides_rpc_keys():
+    from pair_scanner.helpers import escape_markdown
+
+    text = escape_markdown(
+        "429, url='https://base-mainnet.g.alchemy.com/v2/AbC-123_xyz' "
+        "and https://rpc.ankr.com/base/0123abcdef"
+    )
+
+    assert "AbC" not in text and "0123abcdef" not in text
+    assert text.count("<hidden>") == 2

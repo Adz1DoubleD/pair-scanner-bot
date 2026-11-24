@@ -88,8 +88,10 @@ async def audit_pair(
                 reasons.append("no-data")
             elif sec_status != "clear":
                 reasons.append(sec_status)
-            if not can_sell or is_safe is not True:
+            if can_sell is False or is_safe is not True:
                 reasons.append("honey-pot")
+            elif can_sell is None:
+                reasons.append("sell-unchecked")
             if gp_data and not metrics.get("success"):
                 reasons.append("metrics-rejected")
             elif gp_data and m_ratio < min_ratio:

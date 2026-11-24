@@ -16,7 +16,8 @@ GECKO_POOLS = "https://api.geckoterminal.com/api/v2/networks/base/pools"
 
 def escape_markdown(text: object) -> str:
     escape_chars = r"_*[`"
-    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", str(text))
+    shown = re.sub(r"(alchemy\.com/v2/|ankr\.com/\w+/)[\w-]+", r"\1<hidden>", str(text))
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", shown)
 
 
 def to_float(v: Any) -> float | None:

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.5](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.4...v1.4.5) (2026-11-24)
+
+
+### Bug Fixes
+
+* switch RPC on rate limits, poll for pairs every 30s, hide API keys in alerts, and retry unchecked sells ([#74](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/74)) ([213a50a](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/213a50a7afc5d7959289f8e3987bc1ff4a663b21))
+
 ## [1.4.4](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.3...v1.4.4) (2026-11-20)
 
 

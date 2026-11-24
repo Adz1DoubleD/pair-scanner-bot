@@ -311,3 +311,30 @@ async def test_a_watched_pair_is_followed_as_a_pretend_position(
     entry = audit.pairs_position_add.await_args.args[0]
     assert entry["status"] == "paper"
     assert entry["eth_spent"] == OPTIONS["buy_amount_eth"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sellable,honeypot_safe,status",
+    [
+        (None, True, "sell-unchecked"),
+        (False, True, "honey-pot"),
+        (None, None, "honey-pot"),
+    ],
+)
+async def test_an_unchecked_sale_is_retried_not_called_a_honeypot(
+    monkeypatch, passing_audit, watch_only, sellable, honeypot_safe, status
+):
+    marks, _ = passing_audit
+    monkeypatch.setattr(audit, "simulate_sell", AsyncMock(return_value=sellable))
+    monkeypatch.setattr(audit, "check_honeypot", AsyncMock(return_value=honeypot_safe))
+
+    await audit.audit_pair(None, [dict(PAIR)])
+
+    marks.assert_awaited_once_with(PAIR["target_address"], status)
+
+
+def test_an_unchecked_sale_is_always_retried():
+    from pair_scanner.constants import PAIR_RETRY_ALWAYS
+
+    assert "sell-unchecked" in PAIR_RETRY_ALWAYS

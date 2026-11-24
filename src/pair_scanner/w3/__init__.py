@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import Any
 
-from aiohttp import ClientSession, TCPConnector
+from aiohttp import ClientResponse, ClientSession, TCPConnector
 from web3 import AsyncHTTPProvider, AsyncWeb3, Web3
 from web3.exceptions import BadFunctionCallOutput, ContractLogicError
 
@@ -88,10 +88,16 @@ async def open_w3(conf: dict) -> AsyncWeb3:
             continue
 
         if url not in w3_cache:
+
+            async def check(response: ClientResponse, url: str = url) -> None:
+                if response.status == 429:
+                    rpc_failed[url] = time.time()
+                response.raise_for_status()
+
             provider = AsyncHTTPProvider(url, request_kwargs={"timeout": 10})
             await provider.cache_async_session(
                 ClientSession(
-                    raise_for_status=True, connector=TCPConnector(force_close=True)
+                    raise_for_status=check, connector=TCPConnector(force_close=True)
                 )
             )
             w3_cache[url] = AsyncWeb3(provider)

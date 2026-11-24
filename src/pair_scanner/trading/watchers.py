@@ -28,6 +28,7 @@ async def watch_new_pairs() -> None:
     network_name = "Base"
     conf = NETWORKS[network_name]
     BUFFER = 2
+    POLL_SECONDS = 30
     MAX_BLOCK_RANGE = 10
     REPORT_AFTER_FAILURES = 30
     failures = 0
@@ -98,7 +99,7 @@ async def watch_new_pairs() -> None:
             await asyncio.sleep(10)
             continue
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(POLL_SECONDS)
 
 
 async def watch_pair_metadata() -> None:

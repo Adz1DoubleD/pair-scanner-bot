@@ -105,8 +105,11 @@ async def test_rpc_outage_and_quiet_pairs_are_reported(chain):
 
     report = await health.scanner_health()
 
-    assert "🔥 *Net0 RPC*: all down" in report["alerts"]
-    assert any("PAIRS BACKLOG" in a for a in report["alerts"])
+    assert "🔥 *Net0 RPC*: all 2 nodes down" in report["alerts"]
+    assert (
+        "📦 *PAIRS BACKLOG*: `50` pairs waiting to be checked, 0 found in the "
+        "last 24h. Checking 20 every 5 min, under 1h"
+    ) in report["alerts"]
     assert any("no new pairs for 3h" in a for a in report["alerts"])
 
 
@@ -216,8 +219,8 @@ async def test_the_database_is_checked(chain, database, kwargs, line, alert):
             "pool list failed (fetch failed (status 429))",
         ),
         ({"at": "now", "fetched": 0, "error": None}, "the pool list came back empty"),
-        ({"at": "old", "fetched": 120, "error": None}, "hasn't run on schedule"),
-        ({}, "hasn't run on schedule"),
+        ({"at": "old", "fetched": 120, "error": None}, "hasn't run since "),
+        ({}, "hasn't run since start-up, due every 60 min"),
     ],
     ids=["fine", "fetch-failed", "empty", "stale", "never-ran"],
 )
@@ -231,7 +234,8 @@ async def test_the_strategy_side_is_checked_too(chain, monkeypatch, run, alert):
 
     alerts = [a for a in (await health.scanner_health())["alerts"] if "STRATEGY" in a]
 
-    assert alerts == ([f"🧭 *STRATEGY*: {alert}"] if alert else [])
+    assert len(alerts) == (1 if alert else 0)
+    assert all(a.startswith(f"🧭 *STRATEGY*: {alert}") for a in alerts)
 
 
 @pytest.mark.asyncio

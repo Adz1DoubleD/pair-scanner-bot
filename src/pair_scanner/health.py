@@ -84,7 +84,7 @@ async def scanner_health() -> dict:
             rpc_lines.append(f"{name}: 🟢 {up}/{total} up")
         elif len(down) == total:
             rpc_lines.append(f"{name}: 🔴 all down")
-            alerts.append(f"🔥 *{name} RPC*: all down")
+            alerts.append(f"🔥 *{name} RPC*: all {total} nodes down")
         else:
             names = ", ".join(d.replace("❌ ", "") for d in down)
             rpc_lines.append(f"{name}: 🟡 {up}/{total} up ({names})")
@@ -108,9 +108,16 @@ async def scanner_health() -> dict:
     minimum = float(OPTIONS.get("min_eth_balance") or 0)
     eth_low = not failed and total_eth < minimum
     if trading_on and eth_low:
-        alerts.append(f"⚠️ *LOW ETH BALANCE*: `{total_eth:.4f} ETH`")
+        alerts.append(
+            f"⚠️ *LOW ETH BALANCE*: `{total_eth:.4f} ETH`, "
+            f"below the {minimum:g} ETH minimum"
+        )
     elif trading_on and failed and total_eth < minimum:
-        alerts.append(f"⚠️ *ETH BALANCE UNKNOWN*: check failed for {', '.join(failed)}")
+        alerts.append(
+            f"⚠️ *ETH BALANCE UNKNOWN*: couldn't read {', '.join(failed)}, "
+            f"the rest add up to `{total_eth:.4f} ETH` "
+            f"(minimum {minimum:g})"
+        )
 
     if current_mode("pairs") != MODE_OFF:
         try:
@@ -118,9 +125,17 @@ async def scanner_health() -> dict:
         except Exception as e:
             sentry_sdk.capture_exception(e)
         else:
-            if stats.get("awaiting", 0) > PAIRS_BACKLOG_LIMIT:
+            waiting = stats.get("awaiting", 0)
+            if waiting > PAIRS_BACKLOG_LIMIT:
+                batch = int(OPTIONS.get("auto_audit_max") or 20)
+                minutes = float(OPTIONS.get("pairs_monitor_interval") or 5)
+                hours = waiting / batch * minutes / 60
+                new = stats.get("monitors", {}).get("pairs", {}).get("found", 0)
                 alerts.append(
-                    "📦 *PAIRS BACKLOG*: Discovery outstripping processing capacity."
+                    f"📦 *PAIRS BACKLOG*: `{waiting}` pairs waiting to be checked, "
+                    f"{new} found in the last 24h. Checking {batch} every "
+                    f"{minutes:g} min, "
+                    + (f"about {hours:.0f}h to clear" if hours >= 1 else "under 1h")
                 )
             interval = timedelta(
                 minutes=float(OPTIONS.get("health_check_interval") or 60)
@@ -146,7 +161,16 @@ async def scanner_health() -> dict:
         elif (
             datetime.now(timezone.utc) - STRATEGY_RUN.get("at", STARTED_AT) >= 2 * every
         ):
-            alerts.append("🧭 *STRATEGY*: hasn't run on schedule")
+            last = STRATEGY_RUN.get("at")
+            alerts.append(
+                "🧭 *STRATEGY*: hasn't run "
+                + (
+                    f"since {last.astimezone(ZoneInfo(SETTINGS.timezone)):%H:%M}"
+                    if last
+                    else "since start-up"
+                )
+                + f", due every {every.total_seconds() / 60:g} min"
+            )
 
     forced = forced_mode()
     monitors = (

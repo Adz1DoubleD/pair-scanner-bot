@@ -157,10 +157,12 @@ async def _send_health(context: ContextTypes.DEFAULT_TYPE) -> None:
         before = await db_total_mb()
         limit = float(OPTIONS.get("db_cleanup_mb") or 0)
         if limit and before >= limit:
-            await clear_archive()
+            removed = await clear_archive()
             after = await db_total_mb()
             cleaned.append(
-                f"🧹 *Database auto-cleaned* — {before:.2f} → {after:.2f} MB"
+                f"🧹 *Database auto-cleaned* — {before:.2f} → {after:.2f} MB, "
+                f"{removed} rejected pairs and old trades removed "
+                f"(limit {limit:g} MB)"
             )
     except Exception as e:
         sentry_sdk.capture_exception(e)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.6...v1.5.0) (2026-11-26)
+
+
+### Features
+
+* clearer health alerts with counts ([#78](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/78)) ([ed3403a](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/ed3403a738c282f747b3922b408b149b56ef036e))
+
 ## [1.4.6](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.5...v1.4.6) (2026-11-26)
 
 

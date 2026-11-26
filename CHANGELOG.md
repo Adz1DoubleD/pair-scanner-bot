@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.6](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.5...v1.4.6) (2026-11-26)
+
+
+### Bug Fixes
+
+* stop checking pools that have no liquidity ([#76](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/76)) ([9887bb8](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/9887bb8b35286d1887b592b4554c55890d1d570f))
+
 ## [1.4.5](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.4...v1.4.5) (2026-11-24)
 
 

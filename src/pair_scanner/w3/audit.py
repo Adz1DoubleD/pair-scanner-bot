@@ -67,6 +67,11 @@ async def audit_pair(
             weth_addr = Web3.to_checksum_address(conf["weth"])
             weth_contract = w3.eth.contract(address=weth_addr, abi=WETH_ABI)
             balance = await weth_contract.functions.balanceOf(pair).call()
+            if balance < min_liq and not (preview or force_buy):
+                await pairs_mark_audit_complete(token_addr, "low-liquidity")
+                label = PAIR_LABELS["low-liquidity"]
+                results.append(f"🚫 {symbol} — {escape_markdown(label)}")
+                continue
 
             sec_status, is_renounced, gp_data = await get_security_audit(
                 token_addr, conf["chain_id"]

@@ -338,3 +338,22 @@ def test_an_unchecked_sale_is_always_retried():
     from pair_scanner.constants import PAIR_RETRY_ALWAYS
 
     assert "sell-unchecked" in PAIR_RETRY_ALWAYS
+
+
+@pytest.mark.asyncio
+async def test_a_pool_without_liquidity_skips_the_other_checks(
+    monkeypatch, passing_audit, watch_only
+):
+    marks, _ = passing_audit
+    contract = MagicMock()
+    contract.functions.balanceOf.return_value.call = AsyncMock(return_value=10**12)
+    w3 = MagicMock()
+    w3.eth.contract.return_value = contract
+    monkeypatch.setattr(audit, "open_w3", AsyncMock(return_value=w3))
+
+    result = await audit.audit_pair(None, [dict(PAIR)])
+
+    marks.assert_awaited_once_with(PAIR["target_address"], "low-liquidity")
+    audit.get_security_audit.assert_not_awaited()
+    audit.simulate_sell.assert_not_awaited()
+    assert "🚫 TKN — Low Liquidity" in result["text"]

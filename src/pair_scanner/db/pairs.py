@@ -125,13 +125,14 @@ async def pairs_mark_audit_complete(address: str, final_status: str) -> None:
             )
 
 
-async def clear_archive() -> None:
+async def clear_archive() -> int:
     async with db_session() as cur:
         placeholders = ",".join(["%s"] * len(PAIR_STATUS))
         await cur.execute(
             f"DELETE FROM pairs WHERE status IN ({placeholders})",
             tuple(PAIR_STATUS),
         )
+        removed = cur.rowcount
         await cur.execute(
             """
             DELETE FROM positions
@@ -139,7 +140,9 @@ async def clear_archive() -> None:
               AND last_updated < NOW() - INTERVAL 7 DAY
             """
         )
+        removed += cur.rowcount
         await cur.execute("OPTIMIZE TABLE pairs, positions")
+    return removed
 
 
 async def db_total_mb() -> float:

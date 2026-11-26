@@ -212,7 +212,7 @@ async def test_the_health_job_cleans_the_database_near_its_limit(
     monkeypatch, sizes, cleaned
 ):
     monkeypatch.setattr(jobs, "db_total_mb", AsyncMock(side_effect=sizes))
-    clear = AsyncMock()
+    clear = AsyncMock(return_value=861)
     monkeypatch.setattr(jobs, "clear_archive", clear)
     monkeypatch.setattr(
         jobs, "scanner_health", AsyncMock(return_value={"alerts": [], "low_eth": False})
@@ -225,7 +225,9 @@ async def test_the_health_job_cleans_the_database_near_its_limit(
     sent = c.bot.send_message.await_args
     assert (
         sent is not None
-        and "🧹 *Database auto-cleaned* — 4.50 → 1.20 MB" in sent.kwargs["text"]
+        and "🧹 *Database auto-cleaned* — 4.50 → 1.20 MB, 861 rejected pairs and old "
+        "trades removed (limit 4 MB)"
+        in sent.kwargs["text"]
     ) is cleaned
 
 

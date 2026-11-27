@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.5.1...v1.6.0) (2026-11-27)
+
+
+### Features
+
+* watch new Uniswap v4 pools (watch-only) ([#82](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/82)) ([fd7ce43](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/fd7ce432064c4bf25c135e967af8fab9cec4ccde))
+
 ## [1.5.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.5.0...v1.5.1) (2026-11-27)
 
 

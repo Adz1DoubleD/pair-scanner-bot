@@ -30,6 +30,7 @@ from ..w3.tools import (
     trade_result,
 )
 from ..w3.trade import execute_sell
+from ..w3.v4 import audit_v4
 
 _NO_ENTRY_WARNED: set[int] = set()
 
@@ -40,19 +41,27 @@ async def run_pairs_monitor(
     max_positions = int(OPTIONS.get("max_positions", 5))
     active_count = await pairs_get_status_count("monitoring", "positions")
     slots = max_positions - active_count
+    result: dict[str, Any] | str
     if slots <= 0:
-        return f"⏸️ Max positions reached ({active_count}/{max_positions})"
+        result = f"⏸️ Max positions reached ({active_count}/{max_positions})"
+    elif not (ready_to_audit := await pairs_get_for_audit()):
+        result = "📭 No pairs ready to audit"
+    else:
+        result = await audit_pair(context, ready_to_audit, max_buys=slots)
+        if isinstance(result, dict):
+            result["positions"] = (
+                active_count + len(result["charts"]),
+                max_positions,
+            )
 
-    ready_to_audit = await pairs_get_for_audit()
-    if not ready_to_audit:
-        return "📭 No pairs ready to audit"
-
-    result = await audit_pair(context, ready_to_audit, max_buys=slots)
-    if isinstance(result, dict):
-        result["positions"] = (
-            active_count + len(result["charts"]),
-            max_positions,
-        )
+    v4_ready = await pairs_get_for_audit(source="v4")
+    if not v4_ready:
+        return result
+    v4 = await audit_v4(v4_ready)
+    if not isinstance(result, dict):
+        result = {"text": result, "charts": [], "buys": [], "failed": []}
+    result["text"] += "\n\n🦄 *Uniswap v4* (watch-only)\n" + v4["text"]
+    result["watched"] = list(result.get("watched") or []) + v4["watched"]
     return result
 
 

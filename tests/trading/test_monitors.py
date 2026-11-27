@@ -358,9 +358,16 @@ def auditor(monkeypatch):
         ready=AsyncMock(return_value=[{"id": 1}]),
         audit=AsyncMock(return_value="audited"),
     )
+    m.v4_ready = AsyncMock(return_value=[])
+    m.v4 = AsyncMock(return_value={"text": "👀 $V · Doppler v4", "watched": ["$V"]})
     monkeypatch.setattr(auto, "pairs_get_status_count", m.count)
-    monkeypatch.setattr(auto, "pairs_get_for_audit", m.ready)
+    monkeypatch.setattr(
+        auto,
+        "pairs_get_for_audit",
+        lambda source="pairs": m.ready() if source == "pairs" else m.v4_ready(),
+    )
     monkeypatch.setattr(auto, "audit_pair", m.audit)
+    monkeypatch.setattr(auto, "audit_v4", m.v4)
     return m
 
 
@@ -405,6 +412,47 @@ async def test_auditor_errors_propagate(auditor):
 
     with pytest.raises(RuntimeError, match="boom"):
         await auto.run_pairs_monitor(make_ctx())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "count,ready,audited",
+    [(5, [], "⏸️ Max positions reached (5/5)"), (2, [], "📭 No pairs ready to audit")],
+    ids=["positions-full", "nothing-else-ready"],
+)
+async def test_v4_pools_are_checked_even_when_nothing_else_is(
+    auditor, count, ready, audited
+):
+    auditor.count.return_value = count
+    auditor.ready.return_value = ready
+    auditor.v4_ready.return_value = [{"id": 9}]
+
+    result = await auto.run_pairs_monitor(make_ctx())
+
+    auditor.v4.assert_awaited_once_with([{"id": 9}])
+    assert result["text"] == (
+        f"{audited}\n\n🦄 *Uniswap v4* (watch-only)\n👀 $V · Doppler v4"
+    )
+    assert result["watched"] == ["$V"]
+    assert result["buys"] == [] and result["failed"] == []
+
+
+@pytest.mark.asyncio
+async def test_v4_results_join_the_pairs_audit(auditor):
+    auditor.audit.return_value = {"text": "🎯", "charts": [], "watched": ["$A"]}
+    auditor.v4_ready.return_value = [{"id": 9}]
+
+    result = await auto.run_pairs_monitor(make_ctx())
+
+    assert result["watched"] == ["$A", "$V"]
+    assert result["positions"] == (2, 5)
+
+
+@pytest.mark.asyncio
+async def test_no_v4_pools_leaves_the_pairs_result_alone(auditor):
+    assert await auto.run_pairs_monitor(make_ctx()) == "audited"
+
+    auditor.v4.assert_not_awaited()
 
 
 BASE_CONF = {"chain_id": 8453}

@@ -18,6 +18,8 @@ from ..networks import (
     NETWORKS,
     PAIR_CREATED_TOPIC,
     POOL_CREATED_TOPIC,
+    V4_HOOKS,
+    V4_INITIALIZE_TOPIC,
 )
 from ..w3 import open_w3
 from ..w3.audit import parse_pair_created
@@ -38,10 +40,14 @@ async def watch_new_pairs() -> None:
             conf["v2_factory"],
             conf["v3_factory"],
             conf.get("aero_factory"),
+            conf.get("v4_pool_manager"),
         )
         if f
     ]
-    topics = [PAIR_CREATED_TOPIC, POOL_CREATED_TOPIC, AERO_POOL_CREATED_TOPIC]
+    topics = [PAIR_CREATED_TOPIC, POOL_CREATED_TOPIC, AERO_POOL_CREATED_TOPIC] + (
+        [V4_INITIALIZE_TOPIC] if conf.get("v4_pool_manager") else []
+    )
+    eth_sides = {conf["weth"].lower(), "0x" + "0" * 40}
 
     while True:
         try:
@@ -66,14 +72,36 @@ async def watch_new_pairs() -> None:
                         }
                     )
 
-                    if logs:
-                        for log in logs:
-                            t0, t1, pair = parse_pair_created(log)
+                    for log in logs or []:
+                        topic = "0x" + log["topics"][0].hex().removeprefix("0x")
+                        if topic.lower() == V4_INITIALIZE_TOPIC:
+                            c0 = "0x" + log["topics"][2].hex()[-40:]
+                            c1 = "0x" + log["topics"][3].hex()[-40:]
+                            sides = {c0.lower(), c1.lower()}
+                            if not sides & eth_sides or sides <= eth_sides:
+                                continue
+                            data = bytes(log["data"])
+                            fee = int.from_bytes(data[0:32])
+                            spacing = int.from_bytes(data[32:64], signed=True)
+                            hook = "0x" + data[76:96].hex()
+                            await pairs_add(
+                                c1 if c0.lower() in eth_sides else c0,
+                                "0x" + log["topics"][1].hex()[-64:],
+                                network_name,
+                                source="v4",
+                                pool_key=f"{c0},{c1},{fee},{spacing},{hook}",
+                                status=(
+                                    "pending" if hook in V4_HOOKS else "unknown-hook"
+                                ),
+                            )
+                            continue
 
-                            weth = conf["weth"].lower()
-                            if t0.lower() == weth or t1.lower() == weth:
-                                target = t1 if t0.lower() == weth else t0
-                                await pairs_add(target, pair, network_name)
+                        t0, t1, pair = parse_pair_created(log)
+
+                        weth = conf["weth"].lower()
+                        if t0.lower() == weth or t1.lower() == weth:
+                            target = t1 if t0.lower() == weth else t0
+                            await pairs_add(target, pair, network_name)
 
                     last_block = to_block
                     from_block = to_block + 1

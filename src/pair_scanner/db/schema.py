@@ -16,7 +16,8 @@ async def init_scanner_db() -> None:
                 CREATE TABLE pairs (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     target_address VARCHAR(42) UNIQUE,
-                    pair_address VARCHAR(42),
+                    pair_address VARCHAR(66),
+                    pool_key VARCHAR(160) DEFAULT NULL,
                     symbol VARCHAR(20),
                     decimals INT,
                     network VARCHAR(50),
@@ -29,6 +30,13 @@ async def init_scanner_db() -> None:
                     INDEX (source)
                 )
             """)
+
+        await cur.execute("SHOW COLUMNS FROM pairs LIKE 'pool_key'")
+        if not await cur.fetchone():
+            await cur.execute(
+                "ALTER TABLE pairs MODIFY pair_address VARCHAR(66), "
+                "ADD COLUMN pool_key VARCHAR(160) DEFAULT NULL AFTER pair_address"
+            )
 
         await cur.execute("SHOW TABLES LIKE 'positions'")
         if not await cur.fetchone():

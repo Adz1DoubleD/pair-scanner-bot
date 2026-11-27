@@ -8,21 +8,31 @@ from .core import db_session
 
 
 async def pairs_add(
-    target_address: str, pair_address: str, network: str, decimals: int = 18
+    target_address: str,
+    pair_address: str,
+    network: str,
+    decimals: int = 18,
+    source: str = "pairs",
+    pool_key: str | None = None,
+    status: str = "pending",
 ) -> bool:
     async with db_session() as cur:
         await cur.execute(
             """
             INSERT IGNORE INTO pairs
-            (target_address, pair_address, network, decimals, status)
-            VALUES (%s, %s, %s, %s, %s)
+            (target_address, pair_address, network, decimals, status, source,
+             pool_key, audit_done)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """,
             (
                 target_address,
                 pair_address,
                 network,
                 decimals,
-                "pending",
+                status,
+                source,
+                pool_key,
+                status != "pending",
             ),
         )
         return True
@@ -47,7 +57,7 @@ async def pairs_mark_as_invalid(address: str) -> None:
         )
 
 
-async def pairs_get_for_audit() -> list[dict[str, Any]]:
+async def pairs_get_for_audit(source: str = "pairs") -> list[dict[str, Any]]:
     cooldown = float(OPTIONS.get("audit_cooldown", 120))
     audit_limit = int(OPTIONS.get("auto_audit_max", 20))
     max_retries = int(OPTIONS.get("max_audits", 3))
@@ -58,31 +68,33 @@ async def pairs_get_for_audit() -> list[dict[str, Any]]:
 
         await cur.execute(
             f"""
-            SELECT id, target_address, pair_address, network, symbol, decimals
+            SELECT id, target_address, pair_address, network, symbol, decimals,
+                pool_key
             FROM pairs
             WHERE status IN ({placeholders})
-            AND source = 'pairs'
+            AND source = %s
             AND found_at <= (NOW() - INTERVAL %s MINUTE)
             AND retry_count < %s
             ORDER BY found_at ASC
             LIMIT %s
         """,
-            (*statuses, cooldown, max_retries, audit_limit),
+            (*statuses, source, cooldown, max_retries, audit_limit),
         )
         res = await cur.fetchall()
 
         always_placeholders = ",".join(["%s"] * len(PAIR_RETRY_ALWAYS))
         await cur.execute(
             f"""
-            SELECT id, target_address, pair_address, network, symbol, decimals
+            SELECT id, target_address, pair_address, network, symbol, decimals,
+                pool_key
             FROM pairs
             WHERE status IN ({always_placeholders})
-            AND source = 'pairs'
+            AND source = %s
             AND found_at <= (NOW() - INTERVAL %s MINUTE)
             ORDER BY found_at ASC
             LIMIT %s
         """,
-            (*PAIR_RETRY_ALWAYS, cooldown, audit_limit),
+            (*PAIR_RETRY_ALWAYS, source, cooldown, audit_limit),
         )
         always_res = await cur.fetchall()
 

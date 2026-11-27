@@ -19,6 +19,8 @@ def fake_db(make_cursor, tables=(), stored=(), host=None, columns=()):
                 self.tables.add(sql.split()[2])
                 if "half_eth" in sql:
                     self.columns.add("half_eth")
+                if "pool_key" in sql:
+                    self.columns.add("pool_key")
             if sql.startswith("INSERT INTO scanner_settings"):
                 self.stored.append({"name": args[1][0], "value": args[1][1]})
 
@@ -29,7 +31,7 @@ def fake_db(make_cursor, tables=(), stored=(), host=None, columns=()):
             if sql.startswith("SHOW TABLES LIKE"):
                 name = params[0][0] if params else sql.split("'")[1]
                 return {"t": name} if name in self.tables else None
-            if sql.startswith("SHOW COLUMNS FROM positions LIKE"):
+            if sql.startswith("SHOW COLUMNS FROM"):
                 return {"f": 1} if sql.split("'")[1] in self.columns else None
             if sql.startswith("SELECT * FROM"):
                 return host
@@ -101,3 +103,39 @@ async def test_option_set_refuses_unknown_settings(make_cursor, patch_session):
 
     with pytest.raises(ValueError):
         await db.option_set("private_key", "0x1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_column", [False, True])
+async def test_an_older_pairs_table_is_widened_for_v4_pools(
+    make_cursor, patch_session, has_column
+):
+    cur = patch_session(
+        db.schema,
+        fake_db(
+            make_cursor,
+            tables={"pairs", "positions", "scanner_settings"},
+            columns={"pool_key"} if has_column else (),
+        ),
+    )
+
+    await db.init_scanner_db()
+
+    altered = [c[0] for c in cur.calls if c[0].startswith("ALTER TABLE pairs")]
+    assert altered == (
+        []
+        if has_column
+        else [
+            "ALTER TABLE pairs MODIFY pair_address VARCHAR(66), "
+            "ADD COLUMN pool_key VARCHAR(160) DEFAULT NULL AFTER pair_address"
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_new_pairs_table_has_room_for_v4_pools(make_cursor, patch_session):
+    cur = patch_session(db.schema, fake_db(make_cursor))
+
+    await db.init_scanner_db()
+
+    assert not any(c[0].startswith("ALTER TABLE pairs") for c in cur.calls)

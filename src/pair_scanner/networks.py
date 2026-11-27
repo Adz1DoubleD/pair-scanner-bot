@@ -58,6 +58,8 @@ def _build_networks() -> dict[str, dict[str, Any]]:
             "v3_quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
             "aero_router": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
             "aero_factory": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
+            "v4_pool_manager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "v4_quoter": "0x0d5e0f971ed27fbff6c2837bf31316121532048d",
             "weth": "0x4200000000000000000000000000000000000006",
             "gas_multiplier": 1.1,
             "min_sweep_wei": 100000000000000,
@@ -405,3 +407,49 @@ POOL_CREATED_TOPIC = (
 AERO_POOL_CREATED_TOPIC = (
     "0x2128d88d14c80cb081c1252a5acff7a264671bf199ce226b53788fb26065005e"
 )
+
+V4_INITIALIZE_TOPIC = (
+    "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438"
+)
+
+V4_HOOKS = {
+    "0x0000000000000000000000000000000000000000": "Uniswap",
+    "0xb429d62f8f3bffb98cdb9569533ea23bf0ba28cc": "Clanker",
+    "0xbdf938149ac6a781f94faa0ed45e6a0e984c6544": "Doppler",
+}
+
+V4_QUOTER_ABI = [
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "components": [
+                            {"name": "currency0", "type": "address"},
+                            {"name": "currency1", "type": "address"},
+                            {"name": "fee", "type": "uint24"},
+                            {"name": "tickSpacing", "type": "int24"},
+                            {"name": "hooks", "type": "address"},
+                        ],
+                        "name": "poolKey",
+                        "type": "tuple",
+                    },
+                    {"name": "zeroForOne", "type": "bool"},
+                    {"name": "exactAmount", "type": "uint128"},
+                    {"name": "hookData", "type": "bytes"},
+                ],
+                "name": "params",
+                "type": "tuple",
+            }
+        ],
+        "name": "quoteExactOutputSingle",
+        "outputs": [
+            {"name": "amountIn", "type": "uint256"},
+            {"name": "gasEstimate", "type": "uint256"},
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    }
+]
+
+V4_NOT_ENOUGH_LIQUIDITY = "7a5ed734"

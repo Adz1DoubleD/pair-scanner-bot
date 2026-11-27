@@ -10,6 +10,7 @@ from pair_scanner.networks import (
     AERO_POOL_CREATED_TOPIC,
     PAIR_CREATED_TOPIC,
     POOL_CREATED_TOPIC,
+    V4_INITIALIZE_TOPIC,
 )
 
 BASE_CONF = {"chain_id": 8453}
@@ -264,3 +265,79 @@ async def test_watcher_reports_a_request_that_keeps_failing(
         await auto.watch_new_pairs()
 
     assert capture.call_count == reported
+
+
+POOL_MANAGER = "0x" + "66" * 20
+POOL_ID = "0x" + "ee" * 32
+CLANKER = "0xb429d62f8f3bffb98cdb9569533ea23bf0ba28cc"
+NATIVE = "0x" + "00" * 20
+
+
+def v4_log(c0, c1, hook, fee=8388608, spacing=200):
+    return {
+        "topics": [
+            HexBytes(V4_INITIALIZE_TOPIC),
+            HexBytes(POOL_ID),
+            HexBytes("0x" + _word(c0)),
+            HexBytes("0x" + _word(c1)),
+        ],
+        "data": HexBytes(
+            fee.to_bytes(32, "big")
+            + spacing.to_bytes(32, "big", signed=True)
+            + bytes.fromhex(_word(hook))
+            + bytes(64)
+        ),
+    }
+
+
+V4_CONF = {**WATCH_CONF, "v4_pool_manager": POOL_MANAGER}
+
+
+@pytest.mark.asyncio
+async def test_watcher_also_listens_to_uniswap_v4(watcher):
+    get_logs, _ = await watcher(conf=V4_CONF)
+
+    query = get_logs.await_args.args[0]
+    assert query["address"][-1] == POOL_MANAGER
+    assert query["topics"][0][-1] == V4_INITIALIZE_TOPIC
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "c0,c1,token",
+    [(WATCH_WETH, NEW_TOKEN, NEW_TOKEN), (NATIVE, NEW_TOKEN, NEW_TOKEN)],
+    ids=["weth", "native-eth"],
+)
+async def test_watcher_adds_v4_eth_pools_with_their_key(watcher, c0, c1, token):
+    _, added = await watcher(conf=V4_CONF, logs=[v4_log(c0, c1, CLANKER)])
+
+    added.assert_awaited_once_with(
+        token,
+        POOL_ID,
+        "Base",
+        source="v4",
+        pool_key=f"{c0},{c1},8388608,200,{CLANKER}",
+        status="pending",
+    )
+
+
+@pytest.mark.asyncio
+async def test_watcher_rejects_v4_pools_with_an_unknown_hook(watcher):
+    hook = "0x" + "77" * 20
+
+    _, added = await watcher(conf=V4_CONF, logs=[v4_log(NEW_TOKEN, WATCH_WETH, hook)])
+
+    assert added.await_args.args[0] == NEW_TOKEN
+    assert added.await_args.kwargs["status"] == "unknown-hook"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "c0,c1",
+    [(NEW_TOKEN, "0x" + "55" * 20), (NATIVE, WATCH_WETH)],
+    ids=["no-eth", "eth-weth"],
+)
+async def test_watcher_skips_v4_pools_not_paired_with_one_eth_side(watcher, c0, c1):
+    _, added = await watcher(conf=V4_CONF, logs=[v4_log(c0, c1, CLANKER)])
+
+    added.assert_not_awaited()

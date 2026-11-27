@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.5.0...v1.5.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* stop calling established tokens honeypots ([#80](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/80)) ([4c1740c](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/4c1740cafc5c8633b332e1cce86f0df1f8e02a3d))
+
 ## [1.5.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.4.6...v1.5.0) (2026-11-26)
 
 

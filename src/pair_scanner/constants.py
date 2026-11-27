@@ -13,6 +13,8 @@ PAIR_STATUSES = {
     "invalid": ("Invalid", "limited"),
     "lp-unlocked": ("LP Unlocked", "limited"),
     "whale": ("Big Holder", "limited"),
+    "unknown-hook": ("Unknown Hook", "never"),
+    "hook-blocked": ("Hook Blocked Quote", "limited"),
 }
 
 PAIR_STATUS = list(PAIR_STATUSES)

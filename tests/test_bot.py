@@ -1,6 +1,7 @@
 import ast
 import csv
 import io
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -667,3 +668,54 @@ async def test_dashboard_shows_how_watch_picks_would_have_done(monkeypatch):
 
     assert text.startswith("🤖 *Token Scanner*\n")
     assert "Would have made: `+12.50%` (3/4 up)" in text
+
+
+V4_ROW = {
+    "id": 5,
+    "target_address": "0x" + "ab" * 20,
+    "pair_address": "0x" + "ee" * 32,
+    "symbol": "V",
+    "status": "watched",
+    "source": "v4",
+    "network": "Base",
+    "found_at": datetime(2026, 11, 27, tzinfo=timezone.utc),
+    "audit_done": True,
+    "retry_count": 0,
+}
+
+
+@pytest.fixture
+def v4_screen(monkeypatch):
+    import pair_scanner.blocks.pairs as pairs_screen
+
+    audit = AsyncMock(return_value="bought")
+    monkeypatch.setattr(pairs_screen, "pairs_get_by_id", AsyncMock(return_value=V4_ROW))
+    monkeypatch.setattr(pairs_screen, "get_neighbours", AsyncMock(return_value=(4, 6)))
+    monkeypatch.setattr(pairs_screen, "audit_pair", audit)
+    return pairs_screen, audit
+
+
+@pytest.mark.asyncio
+async def test_a_v4_pool_has_no_preview_button(v4_screen):
+    pairs_screen, _ = v4_screen
+
+    block = await pairs_screen.block_detail(None, 5, "pairs")
+
+    buttons_data = [
+        b.callback_data for row in block["reply_markup"].inline_keyboard for b in row
+    ]
+    assert "scanner:preview:5" not in buttons_data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", ["scanner:buy:5", "scanner:preview:5"])
+async def test_a_v4_pool_can_never_be_bought_or_previewed(v4_screen, data):
+    pairs_screen, audit = v4_screen
+    update, context = press(data)
+
+    handler = (
+        pairs_screen.button_buy if ":buy:" in data else pairs_screen.button_preview
+    )
+    await handler(update, context)
+
+    audit.assert_not_awaited()

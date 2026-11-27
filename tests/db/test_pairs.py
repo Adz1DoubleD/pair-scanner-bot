@@ -8,7 +8,29 @@ async def test_pairs_add_uses_pending_default(make_cursor, patch_session):
     cur = make_cursor()
     patch_session(pairs, cur)
     assert await pairs.pairs_add("token", "pair", "Base") is True
-    assert cur.execute.call_args.args[1] == ("token", "pair", "Base", 18, "pending")
+    assert cur.execute.call_args.args[1] == (
+        "token",
+        "pair",
+        "Base",
+        18,
+        "pending",
+        "pairs",
+        None,
+        False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_v4_pool_with_an_unknown_hook_is_saved_already_rejected(
+    make_cursor, patch_session
+):
+    cur = patch_session(pairs, make_cursor())
+
+    await pairs.pairs_add(
+        "token", "0xid", "Base", source="v4", pool_key="k", status="unknown-hook"
+    )
+
+    assert cur.execute.call_args.args[1][4:] == ("unknown-hook", "v4", "k", True)
 
 
 @pytest.mark.asyncio
@@ -47,11 +69,12 @@ async def test_get_for_audit_combines_limited_and_always_retry_results(
     assert cur.execute.call_args_list[0].args[1] == (
         "awaiting",
         "low-liquidity",
+        "pairs",
         10.0,
         2,
         5,
     )
-    assert cur.execute.call_args_list[1].args[1] == ("pending", 10.0, 5)
+    assert cur.execute.call_args_list[1].args[1] == ("pending", "pairs", 10.0, 5)
 
 
 @pytest.mark.asyncio
@@ -326,10 +349,19 @@ async def test_pairs_get_for_audit_excludes_strat_rows(make_cursor, patch_sessio
 
     result = await pairs.pairs_get_for_audit()
 
-    queries = [c.args[0] for c in cur.execute.call_args_list]
-    assert queries, "expected pairs_get_for_audit to run queries"
-    assert all("source = 'pairs'" in q for q in queries)
+    calls = cur.execute.call_args_list
+    assert calls, "expected pairs_get_for_audit to run queries"
+    assert all("source = %s" in c.args[0] and "pairs" in c.args[1] for c in calls)
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_v4_pools_are_audited_on_their_own(make_cursor, patch_session):
+    cur = patch_session(pairs, make_cursor(fetchall=[[], []]))
+
+    await pairs.pairs_get_for_audit(source="v4")
+
+    assert all("v4" in c.args[1] for c in cur.execute.call_args_list)
 
 
 @pytest.mark.asyncio

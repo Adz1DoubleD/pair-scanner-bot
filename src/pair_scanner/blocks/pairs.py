@@ -87,7 +87,7 @@ async def block_detail(
         ]
     ]
 
-    if status != "completed":
+    if status != "completed" and pair_data.get("source") != "v4":
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -250,7 +250,11 @@ async def button_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     row_id = parts[2]
 
     pair_data = await pairs_get_by_id(row_id, "pairs")
-    result = await audit_pair(context, pair_data, force_buy=True) if pair_data else ""
+    result = (
+        await audit_pair(context, pair_data, force_buy=True)
+        if pair_data and pair_data.get("source") != "v4"
+        else ""
+    )
 
     block = await block_detail(context, row_id, "pairs")
     await query.edit_message_text(
@@ -268,7 +272,7 @@ async def button_preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     pair_data = await pairs_get_by_id(row_id, "pairs")
     block = await block_detail(context, row_id, "pairs")
-    if not pair_data:
+    if not pair_data or pair_data.get("source") == "v4":
         await query.edit_message_text(
             block["text"], reply_markup=block["reply_markup"], parse_mode="Markdown"
         )

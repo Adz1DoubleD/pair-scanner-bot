@@ -37,8 +37,8 @@ def response(body, status=200):
         ({"summary": {"risk": "very_low", "riskLevel": 0}}, True),
         ({"summary": {"risk": "low", "riskLevel": 1}}, True),
         ({"summary": {"risk": "low", "riskLevel": 19}}, True),
-        ({"summary": {"risk": "medium", "riskLevel": 20}}, None),
-        ({"summary": {"risk": "very_high", "riskLevel": 85}}, None),
+        ({"summary": {"risk": "medium", "riskLevel": 20}}, False),
+        ({"summary": {"risk": "very_high", "riskLevel": 85}}, False),
         ({"summary": {"risk": "unknown"}}, None),
         ({"summary": {"risk": "honeypot", "riskLevel": 95}}, False),
         (

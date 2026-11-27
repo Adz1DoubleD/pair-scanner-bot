@@ -275,8 +275,8 @@ async def test_strategy_records_successful_buy(strat):
             lambda m: m.honeypot.configure_mock(return_value=False),
         ),
         (
-            "Honeypot (honeypot.is)",
-            "honey-pot",
+            "Sell Check Failed (honeypot.is didn't answer)",
+            "sell-unchecked",
             lambda m: m.honeypot.configure_mock(return_value=None),
         ),
         (
@@ -1341,3 +1341,14 @@ async def test_a_watch_pick_records_a_half_sale_then_counts_both_halves(mon):
     assert mon.update.await_args.kwargs["half_eth"] == pytest.approx(0.000675)
     assert result["paper"] == ["$TKN · would sell half · +35.00%"]
     mon.completed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_strategy_buys_established_tokens_with_owner_controls(strat):
+    strat.audit.return_value = ("owner-controls", True, strat.gp)
+    strat.candidates.return_value = ([cand("A", liq=500_000, h1=10.0)], None)
+
+    summary = (await strategy.run_strategy_monitor(make_ctx()))["text"]
+
+    assert "🛒 Bought: `1` (1/5 positions)" in summary
+    strat.strat_add.assert_awaited_once_with("0xa", "0xpair-a", "A", "monitoring")

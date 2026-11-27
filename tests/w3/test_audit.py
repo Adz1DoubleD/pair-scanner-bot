@@ -393,3 +393,52 @@ async def test_top_holder_ignores_pools_lockers_and_burns(monkeypatch):
     _, _, gp = await w3_audit.get_security_audit(token, 8453)
 
     assert gp["top_holder_pct"] == pytest.approx(3.0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "flags,status,trap",
+    [
+        ({}, "clear", False),
+        ({"is_mintable": "1"}, "owner-controls", False),
+        ({"is_proxy": "1", "transfer_pausable": "1"}, "owner-controls", False),
+        ({"is_honeypot": "1"}, "honey-pot", True),
+        ({"is_mintable": "1", "owner_change_balance": "1"}, "honey-pot", True),
+    ],
+    ids=["clean", "mintable", "upgradeable", "honeypot", "balance-control"],
+)
+async def test_owner_controls_are_kept_apart_from_real_traps(
+    monkeypatch, flags, status, trap
+):
+    token = "0x" + "ab" * 20
+    body = {
+        "result": {
+            token: {
+                "is_open_source": "1",
+                "owner_address": "",
+                "buy_tax": "0",
+                "sell_tax": "0",
+                **flags,
+            }
+        }
+    }
+
+    class Client:
+        def __init__(self, **_):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def get(self, url):
+            return type("R", (), {"json": lambda self: body})()
+
+    monkeypatch.setattr(w3_audit.httpx, "AsyncClient", Client)
+
+    sec_status, _, gp = await w3_audit.get_security_audit(token, 8453)
+
+    assert sec_status == status
+    assert gp["is_honeypot"] is trap

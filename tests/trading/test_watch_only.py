@@ -319,7 +319,9 @@ async def test_a_watched_pair_is_followed_as_a_pretend_position(
     [
         (None, True, "sell-unchecked"),
         (False, True, "honey-pot"),
-        (None, None, "honey-pot"),
+        (None, None, "sell-unchecked"),
+        (True, None, "sell-unchecked"),
+        (True, False, "honey-pot"),
     ],
 )
 async def test_an_unchecked_sale_is_retried_not_called_a_honeypot(

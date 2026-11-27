@@ -93,9 +93,9 @@ async def audit_pair(
                 reasons.append("no-data")
             elif sec_status != "clear":
                 reasons.append(sec_status)
-            if can_sell is False or is_safe is not True:
+            if can_sell is False or is_safe is False:
                 reasons.append("honey-pot")
-            elif can_sell is None:
+            elif can_sell is None or is_safe is None:
                 reasons.append("sell-unchecked")
             if gp_data and not metrics.get("success"):
                 reasons.append("metrics-rejected")
@@ -237,9 +237,7 @@ async def check_honeypot(token_addr: str, chain_id: int = 8453) -> bool | None:
     level = (data.get("summary") or {}).get("riskLevel")
     if level is None:
         return None
-    if level >= 90:
-        return False
-    return True if level < 20 else None
+    return level < 20
 
 
 async def fetch_candidates(
@@ -337,10 +335,6 @@ async def get_security_audit(
                     flag("is_honeypot"),
                     flag("cannot_sell_all"),
                     flag("cannot_buy"),
-                    flag("transfer_pausable"),
-                    flag("is_blacklisted"),
-                    flag("is_whitelisted"),
-                    flag("is_mintable"),
                     flag("selfdestruct"),
                     flag("hidden_owner"),
                     flag("owner_change_balance"),
@@ -348,7 +342,15 @@ async def get_security_audit(
                     flag("slippage_modifiable"),
                     flag("personal_slippage_modifiable"),
                     flag("trading_cooldown"),
+                ]
+            )
+            controls = any(
+                [
+                    flag("is_mintable"),
                     flag("is_proxy"),
+                    flag("transfer_pausable"),
+                    flag("is_blacklisted"),
+                    flag("is_whitelisted"),
                 ]
             )
 
@@ -381,6 +383,8 @@ async def get_security_audit(
                 status = "honey-pot"
             elif not is_verified:
                 status = "unverified"
+            elif controls:
+                status = "owner-controls"
             elif sell_tax is None or buy_tax is None:
                 status = "clear"
             elif sell_tax > 0.15 or buy_tax > 0.15:

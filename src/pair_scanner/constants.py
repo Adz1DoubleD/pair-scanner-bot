@@ -7,6 +7,7 @@ PAIR_STATUSES = {
     "high-tax": ("High Tax", "limited"),
     "unverified": ("Unverified", "limited"),
     "honey-pot": ("Honeypot", "limited"),
+    "owner-controls": ("Owner Controls", "limited"),
     "sell-unchecked": ("Sell Check Failed", "always"),
     "metrics-rejected": ("Metrics", "limited"),
     "invalid": ("Invalid", "limited"),

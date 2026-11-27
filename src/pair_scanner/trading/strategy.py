@@ -124,13 +124,15 @@ async def run_strategy_monitor(
                 status, detail = "low-liquidity", f"${onchain_usd:,.0f} in the pool"
             elif sellable is False:
                 status, detail = "honey-pot", "can't sell"
-            elif is_safe is not True:
+            elif is_safe is False:
                 status, detail = "honey-pot", "honeypot.is"
             elif sellable is None:
                 status, detail = "sell-unchecked", "couldn't check the sale"
+            elif is_safe is None:
+                status, detail = "sell-unchecked", "honeypot.is didn't answer"
             elif gp_data is None:
                 status, detail = "no-data", ""
-            elif sec_status != "clear":
+            elif sec_status not in ("clear", "owner-controls"):
                 status, detail = sec_status, ""
             elif tax_pct > 10:
                 status, detail = "high-tax", f"{tax_pct:.0f}% sell tax"

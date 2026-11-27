@@ -11,7 +11,7 @@ A self-hosted Telegram bot that watches decentralised exchanges on Base for new 
 ## What it does
 
 - **Finds new pairs.** It watches the Uniswap V2, Uniswap V3 and Aerodrome factories on Base for new pools paired with WETH.
-- **Audits them.** It checks liquidity, the liquidity-to-market-cap ratio, locked LP, whether one wallet holds too much of the supply, taxes, contract security (GoPlus), honeypot risk (honeypot.is), and whether a sale actually goes through (simulated against the chain).
+- **Audits them.** It checks liquidity, the liquidity-to-market-cap ratio, locked LP, whether one wallet holds too much of the supply, taxes, contract security (GoPlus), honeypot risk (honeypot.is), and whether a sale actually goes through (simulated against the chain). Owner controls such as minting or an upgradeable contract reject a new pair, but not an established pool found by the Strategy monitor, since most large tokens have them.
 - **Buys what passes,** when the monitor is on 💰 Live, up to your limits.
 - **Judges every position by what a sale would really return.** Each minute it asks the exchange what selling would bring back and compares that with what the buy actually cost, so a thin pool's price can't fake a gain. If no quote comes back it falls back to the pool price.
 - **Sells half** once a position is up by `half_sell_percent` (30% by default; 0 turns it off). The rest then sells at break-even instead of the stop-loss, so a rug after that costs far less.

@@ -19,6 +19,7 @@ from ..networks import (
     V3_QUOTER_ABI,
     V3_ROUTER_ABI,
     V3_ROUTER_SELF,
+    V4_QUOTER_ABI,
 )
 from ..settings import MODE_LIVE, MODE_OFF, MONITORS, OPTIONS, SETTINGS, current_mode
 from . import open_w3, pool_kind
@@ -198,6 +199,27 @@ async def execute_sell(
         gas_mult = conf.get("gas_multiplier", 1.25)
         gas_limit_token = conf.get("gas_limit_token", 300000)
         deadline = int(time.time()) + 120
+
+        if pos.get("pool_key"):
+            if not quote:
+                return None, "Selling on Uniswap v4 isn't supported yet"
+            c0, c1, fee, spacing, hook = pos["pool_key"].split(",")
+            v4_quoter = w3.eth.contract(
+                address=Web3.to_checksum_address(conf["v4_quoter"]), abi=V4_QUOTER_ABI
+            )
+            key = (
+                Web3.to_checksum_address(c0),
+                Web3.to_checksum_address(c1),
+                int(fee),
+                int(spacing),
+                Web3.to_checksum_address(hook),
+            )
+            eth_out = (
+                await v4_quoter.functions.quoteExactInputSingle(
+                    (key, token_addr.lower() == c0.lower(), balance, b"")
+                ).call()
+            )[0]
+            return eth_out, None
 
         pair_addr = pos.get("pair_address")
         stable, fee = await pool_kind(w3, conf, pair_addr)

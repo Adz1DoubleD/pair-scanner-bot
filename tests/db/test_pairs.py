@@ -187,8 +187,9 @@ async def test_position_add_converts_missing_metrics_to_zero(
     )
     assert result == 21
     params = cur.execute.call_args.args[1]
-    assert params[6:12] == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    assert params[14:] == (True, 0.0, 0.0, None, "monitoring")
+    assert params[1:3] == ("pair", None)
+    assert params[7:13] == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    assert params[15:] == (True, 0.0, 0.0, None, "monitoring")
 
 
 @pytest.mark.asyncio
@@ -212,6 +213,7 @@ async def test_position_add_passes_metrics_and_tax(make_cursor, patch_session):
     assert params == (
         "t",
         "p",
+        None,
         "ABC",
         "ETH",
         "tx",

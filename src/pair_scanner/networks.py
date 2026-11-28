@@ -60,6 +60,7 @@ def _build_networks() -> dict[str, dict[str, Any]]:
             "aero_factory": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
             "v4_pool_manager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
             "v4_quoter": "0x0d5e0f971ed27fbff6c2837bf31316121532048d",
+            "v4_state_view": "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71",
             "weth": "0x4200000000000000000000000000000000000006",
             "gas_multiplier": 1.1,
             "min_sweep_wei": 100000000000000,
@@ -449,7 +450,60 @@ V4_QUOTER_ABI = [
         ],
         "stateMutability": "nonpayable",
         "type": "function",
-    }
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "components": [
+                            {"name": "currency0", "type": "address"},
+                            {"name": "currency1", "type": "address"},
+                            {"name": "fee", "type": "uint24"},
+                            {"name": "tickSpacing", "type": "int24"},
+                            {"name": "hooks", "type": "address"},
+                        ],
+                        "name": "poolKey",
+                        "type": "tuple",
+                    },
+                    {"name": "zeroForOne", "type": "bool"},
+                    {"name": "exactAmount", "type": "uint128"},
+                    {"name": "hookData", "type": "bytes"},
+                ],
+                "name": "params",
+                "type": "tuple",
+            }
+        ],
+        "name": "quoteExactInputSingle",
+        "outputs": [
+            {"name": "amountOut", "type": "uint256"},
+            {"name": "gasEstimate", "type": "uint256"},
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+]
+
+V4_STATE_VIEW_ABI = [
+    {
+        "inputs": [{"name": "poolId", "type": "bytes32"}],
+        "name": "getSlot0",
+        "outputs": [
+            {"name": "sqrtPriceX96", "type": "uint160"},
+            {"name": "tick", "type": "int24"},
+            {"name": "protocolFee", "type": "uint24"},
+            {"name": "lpFee", "type": "uint24"},
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [{"name": "poolId", "type": "bytes32"}],
+        "name": "getLiquidity",
+        "outputs": [{"name": "liquidity", "type": "uint128"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
 ]
 
 V4_NOT_ENOUGH_LIQUIDITY = "7a5ed734"

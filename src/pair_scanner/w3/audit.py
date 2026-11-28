@@ -22,6 +22,7 @@ from ..networks import (
     NETWORKS,
     POOL_CREATED_TOPIC,
     V3_POOL_ABI,
+    V4_STATE_VIEW_ABI,
     WETH_ABI,
 )
 from ..settings import MODE_LIVE, MODE_NAMES, OPTIONS, current_mode
@@ -435,40 +436,63 @@ async def get_token_metrics(
     try:
         w3 = await open_w3(network_conf)
 
-        pair_addr = Web3.to_checksum_address(pair_data["pair_address"])
         token_addr = Web3.to_checksum_address(pair_data["target_address"])
-        weth_addr = Web3.to_checksum_address(network_conf["weth"])
-
-        weth_contract = w3.eth.contract(address=weth_addr, abi=WETH_ABI)
         token_contract = w3.eth.contract(address=token_addr, abi=ERC20_ABI)
 
-        p_weth, p_token, supply, dec = await asyncio.gather(
-            weth_contract.functions.balanceOf(pair_addr).call(),
-            token_contract.functions.balanceOf(pair_addr).call(),
-            token_contract.functions.totalSupply().call(),
-            token_contract.functions.decimals().call(),
-        )
-
-        d_weth = Decimal(p_weth) / Decimal(10**18)
-        d_token = Decimal(p_token) / Decimal(10**dec)
-        d_supply = Decimal(supply) / Decimal(10**dec)
-
-        price_eth = Decimal(0)
-        _, fee = await pool_kind(w3, network_conf, pair_addr)
-        if fee is None:
-            if d_token > 0:
-                price_eth = d_weth / d_token
-        else:
-            pool = w3.eth.contract(address=pair_addr, abi=V3_POOL_ABI)
-            slot0, token0 = await asyncio.gather(
-                pool.functions.slot0().call(), pool.functions.token0().call()
+        if pair_data.get("pool_key"):
+            state = w3.eth.contract(
+                address=Web3.to_checksum_address(network_conf["v4_state_view"]),
+                abi=V4_STATE_VIEW_ABI,
             )
-            raw = Decimal(slot0[0]) ** 2 / Decimal(2**192)
-            if raw > 0:
-                if token0.lower() == token_addr.lower():
-                    price_eth = raw * Decimal(10**dec) / Decimal(10**18)
+            pool_id = bytes.fromhex(pair_data["pair_address"].removeprefix("0x"))
+            slot0, liquidity, supply, dec = await asyncio.gather(
+                state.functions.getSlot0(pool_id).call(),
+                state.functions.getLiquidity(pool_id).call(),
+                token_contract.functions.totalSupply().call(),
+                token_contract.functions.decimals().call(),
+            )
+            d_supply = Decimal(supply) / Decimal(10**dec)
+            root = Decimal(slot0[0]) / Decimal(2**96)
+            price_eth = d_weth = Decimal(0)
+            if root > 0:
+                if pair_data["pool_key"].split(",")[0].lower() == token_addr.lower():
+                    price_eth = root**2 * Decimal(10**dec) / Decimal(10**18)
+                    d_weth = Decimal(liquidity) * root / Decimal(10**18)
                 else:
-                    price_eth = Decimal(10**dec) / (raw * Decimal(10**18))
+                    price_eth = Decimal(10**dec) / (root**2 * Decimal(10**18))
+                    d_weth = Decimal(liquidity) / root / Decimal(10**18)
+        else:
+            pair_addr = Web3.to_checksum_address(pair_data["pair_address"])
+            weth_addr = Web3.to_checksum_address(network_conf["weth"])
+            weth_contract = w3.eth.contract(address=weth_addr, abi=WETH_ABI)
+
+            p_weth, p_token, supply, dec = await asyncio.gather(
+                weth_contract.functions.balanceOf(pair_addr).call(),
+                token_contract.functions.balanceOf(pair_addr).call(),
+                token_contract.functions.totalSupply().call(),
+                token_contract.functions.decimals().call(),
+            )
+
+            d_weth = Decimal(p_weth) / Decimal(10**18)
+            d_token = Decimal(p_token) / Decimal(10**dec)
+            d_supply = Decimal(supply) / Decimal(10**dec)
+
+            price_eth = Decimal(0)
+            _, fee = await pool_kind(w3, network_conf, pair_addr)
+            if fee is None:
+                if d_token > 0:
+                    price_eth = d_weth / d_token
+            else:
+                pool = w3.eth.contract(address=pair_addr, abi=V3_POOL_ABI)
+                slot0, token0 = await asyncio.gather(
+                    pool.functions.slot0().call(), pool.functions.token0().call()
+                )
+                raw = Decimal(slot0[0]) ** 2 / Decimal(2**192)
+                if raw > 0:
+                    if token0.lower() == token_addr.lower():
+                        price_eth = raw * Decimal(10**dec) / Decimal(10**18)
+                    else:
+                        price_eth = Decimal(10**dec) / (raw * Decimal(10**18))
 
         if price_eth > 0 and d_weth > 0:
             mcap_eth = price_eth * d_supply

@@ -375,3 +375,16 @@ async def test_a_paper_position_closes_without_touching_the_pair(
 
     assert cur.execute.await_count == 1
     assert cur.execute.call_args.args[1][0] == "paper-closed"
+
+
+@pytest.mark.asyncio
+async def test_pairs_for_audit_say_if_the_name_was_seen_in_the_last_day(
+    make_cursor, patch_session
+):
+    cur = patch_session(pairs, make_cursor(fetchall=[[], []]))
+
+    await pairs.pairs_get_for_audit()
+
+    for call in cur.execute.call_args_list:
+        assert "AS repeat_name" in call.args[0]
+        assert "INTERVAL 1 DAY" in call.args[0]

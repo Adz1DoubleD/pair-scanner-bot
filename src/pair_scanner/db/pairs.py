@@ -69,8 +69,15 @@ async def pairs_get_for_audit(source: str = "pairs") -> list[dict[str, Any]]:
         await cur.execute(
             f"""
             SELECT id, target_address, pair_address, network, symbol, decimals,
-                pool_key
-            FROM pairs
+                pool_key,
+                EXISTS (
+                    SELECT 1 FROM pairs q
+                    WHERE q.symbol = p.symbol
+                    AND q.target_address != p.target_address
+                    AND q.found_at < p.found_at
+                    AND q.found_at > p.found_at - INTERVAL 1 DAY
+                ) AS repeat_name
+            FROM pairs p
             WHERE status IN ({placeholders})
             AND source = %s
             AND found_at <= (NOW() - INTERVAL %s MINUTE)
@@ -86,8 +93,15 @@ async def pairs_get_for_audit(source: str = "pairs") -> list[dict[str, Any]]:
         await cur.execute(
             f"""
             SELECT id, target_address, pair_address, network, symbol, decimals,
-                pool_key
-            FROM pairs
+                pool_key,
+                EXISTS (
+                    SELECT 1 FROM pairs q
+                    WHERE q.symbol = p.symbol
+                    AND q.target_address != p.target_address
+                    AND q.found_at < p.found_at
+                    AND q.found_at > p.found_at - INTERVAL 1 DAY
+                ) AS repeat_name
+            FROM pairs p
             WHERE status IN ({always_placeholders})
             AND source = %s
             AND found_at <= (NOW() - INTERVAL %s MINUTE)

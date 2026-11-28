@@ -1,5 +1,6 @@
 """Checking new Uniswap v4 pools. Watch-only: nothing here ever buys."""
 
+import unicodedata
 from decimal import Decimal
 from typing import Any
 
@@ -33,6 +34,13 @@ async def audit_v4(entries: list[dict[str, Any]]) -> dict[str, Any]:
             conf = NETWORKS[entry.get("network") or "Base"]
             c0, c1, fee, spacing, hook = (entry.get("pool_key") or "").split(",")
             launchpad = V4_HOOKS.get(hook.lower(), "")
+            if entry.get("repeat_name") or any(
+                unicodedata.category(ch) in ("Cf", "Zs") and ch != " "
+                for ch in entry.get("symbol") or ""
+            ):
+                await pairs_mark_audit_complete(token_addr, "spam")
+                results.append(f"🚫 {symbol} — {PAIR_LABELS['spam']} · v4")
+                continue
             w3 = await open_w3(conf)
             quoter = w3.eth.contract(
                 address=Web3.to_checksum_address(conf["v4_quoter"]),

@@ -15,6 +15,7 @@ PAIR_STATUSES = {
     "whale": ("Big Holder", "limited"),
     "unknown-hook": ("Unknown Hook", "never"),
     "hook-blocked": ("Hook Blocked Quote", "limited"),
+    "spam": ("Spam Name", "never"),
 }
 
 PAIR_STATUS = list(PAIR_STATUSES)

@@ -44,7 +44,8 @@ async def init_scanner_db() -> None:
                 CREATE TABLE positions (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     target_address VARCHAR(42) UNIQUE NOT NULL,
-                    pair_address VARCHAR(42) NOT NULL,
+                    pair_address VARCHAR(66) NOT NULL,
+                    pool_key VARCHAR(160) DEFAULT NULL,
                     symbol VARCHAR(20),
                     network VARCHAR(50) DEFAULT 'Base',
                     buy_tx VARCHAR(66) DEFAULT NULL,
@@ -75,6 +76,13 @@ async def init_scanner_db() -> None:
                     INDEX (pnl_percent)
                 )
             """)
+
+        await cur.execute("SHOW COLUMNS FROM positions LIKE 'pool_key'")
+        if not await cur.fetchone():
+            await cur.execute(
+                "ALTER TABLE positions MODIFY pair_address VARCHAR(66) NOT NULL, "
+                "ADD COLUMN pool_key VARCHAR(160) DEFAULT NULL AFTER pair_address"
+            )
 
         await cur.execute("SHOW TABLES LIKE 'scanner_settings'")
         if not await cur.fetchone():

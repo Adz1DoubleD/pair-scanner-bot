@@ -378,13 +378,14 @@ async def pairs_position_add(
     async with db_session() as cur:
         query = """
             INSERT INTO positions
-            (target_address, pair_address, symbol, network, buy_tx, decimals,
+            (target_address, pair_address, pool_key, symbol, network, buy_tx,
+             decimals,
              entry_price_eth, entry_liq_eth, entry_mcap_eth,
              current_price_eth, current_liq_eth, current_mcap_eth,
              entry_sec_status, current_sec_status, is_renounced,
              buy_tax, sell_tax, eth_spent, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s)
+                    %s, %s, %s)
             AS new
             ON DUPLICATE KEY UPDATE
                 current_price_eth = new.current_price_eth,
@@ -402,6 +403,7 @@ async def pairs_position_add(
             (
                 entry["target_address"],
                 entry["pair_address"],
+                entry.get("pool_key"),
                 entry.get("symbol"),
                 entry.get("network", "Base"),
                 buy_tx,

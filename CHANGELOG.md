@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.6.0...v1.7.0) (2026-11-28)
+
+
+### Features
+
+* reject spam token names ([#84](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/84)) ([ab92205](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/ab922055ee8f17c6e5c931c830033595e7d1287a))
+
 ## [1.6.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.5.1...v1.6.0) (2026-11-27)
 
 

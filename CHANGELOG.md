@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.7.0...v1.8.0) (2026-11-28)
+
+
+### Features
+
+* sell-check v4 picks and track them as pretend positions ([#86](https://github.com/Adz1DoubleD/pair-scanner-bot/issues/86)) ([38bbee4](https://github.com/Adz1DoubleD/pair-scanner-bot/commit/38bbee46cd8200aec1c6f00d7d17554b72a4f138))
+
 ## [1.7.0](https://github.com/Adz1DoubleD/pair-scanner-bot/compare/v1.6.0...v1.7.0) (2026-11-28)
 
 

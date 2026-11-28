@@ -37,7 +37,7 @@ dev = [
     "pytest-asyncio==1.5.0",
     "freezegun==1.5.5",
     "mypy==2.4.1",
-    "ruff==0.17.5",
+    "ruff==0.17.6",
     "pre_commit==4.7.0",
 ]
 

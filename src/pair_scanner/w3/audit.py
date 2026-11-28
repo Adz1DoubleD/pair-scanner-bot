@@ -1,6 +1,7 @@
 """Checking tokens before buying: liquidity, security, honeypots and pool data."""
 
 import asyncio
+import unicodedata
 from decimal import Decimal, getcontext
 from typing import Any
 
@@ -62,6 +63,15 @@ async def audit_pair(
             min_lp_locked = float(OPTIONS.get("min_lp_locked_pct", 70))
             max_holder = float(OPTIONS.get("max_top_holder_pct", 10))
 
+            is_spam = bool(entry.get("repeat_name")) or any(
+                unicodedata.category(ch) in ("Cf", "Zs") and ch != " "
+                for ch in entry.get("symbol") or ""
+            )
+            if is_spam and not (preview or force_buy):
+                await pairs_mark_audit_complete(token_addr, "spam")
+                results.append(f"🚫 {symbol} — {PAIR_LABELS['spam']}")
+                continue
+
             w3 = await open_w3(conf)
             pair = Web3.to_checksum_address(entry["pair_address"])
             weth_addr = Web3.to_checksum_address(conf["weth"])
@@ -86,7 +96,7 @@ async def audit_pair(
             _, fee = await pool_kind(w3, conf, pair)
             is_v3 = fee is not None
 
-            reasons = []
+            reasons = ["spam"] if is_spam else []
             if balance < min_liq:
                 reasons.append("low-liquidity")
             if gp_data is None:

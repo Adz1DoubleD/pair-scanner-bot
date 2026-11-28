@@ -138,3 +138,18 @@ async def test_a_network_error_leaves_the_pool_for_next_time(monkeypatch, checks
     checks.marks.assert_not_awaited()
     reported.assert_called_once()
     assert result["text"] == "⚠️ TKN — slow · v4"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [{"symbol": "U\u200aS\u200aO\u200aE"}, {"repeat_name": 1}],
+    ids=["hidden-characters", "name-seen-today"],
+)
+async def test_a_spam_name_is_rejected_without_a_quote(checks, extra):
+    result = await v4.audit_v4([{**pool(), **extra}])
+
+    checks.marks.assert_awaited_once_with(TOKEN, "spam")
+    checks.quote.assert_not_awaited()
+    assert result["watched"] == []
+    assert "Spam Name · v4" in result["text"]

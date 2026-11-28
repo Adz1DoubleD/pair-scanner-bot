@@ -359,3 +359,41 @@ async def test_a_pool_without_liquidity_skips_the_other_checks(
     audit.get_security_audit.assert_not_awaited()
     audit.simulate_sell.assert_not_awaited()
     assert "🚫 TKN — Low Liquidity" in result["text"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [{"symbol": "U\u200aS\u200aO\u200aE"}, {"symbol": "A\u200bB"}, {"repeat_name": 1}],
+    ids=["hair-spaces", "zero-width-space", "name-seen-today"],
+)
+async def test_a_spam_name_is_rejected_before_any_check(
+    passing_audit, watch_only, extra
+):
+    marks, _ = passing_audit
+
+    result = await audit.audit_pair(None, [{**PAIR, **extra}])
+
+    marks.assert_awaited_once_with(PAIR["target_address"], "spam")
+    audit.open_w3.assert_not_awaited()
+    assert "Spam Name" in result["text"]
+
+
+@pytest.mark.asyncio
+async def test_a_plain_space_in_a_name_is_not_spam(passing_audit, watch_only):
+    marks, _ = passing_audit
+
+    await audit.audit_pair(None, [{**PAIR, "symbol": "Truth Oil"}])
+
+    marks.assert_awaited_once_with(PAIR["target_address"], "watched")
+
+
+@pytest.mark.asyncio
+async def test_a_preview_still_runs_every_check_and_names_the_spam(
+    passing_audit, watch_only
+):
+    preview = await audit.audit_pair(None, {**PAIR, "repeat_name": 1}, preview=True)
+
+    assert "WOULD REJECT" in preview
+    assert "Spam Name" in preview
+    audit.get_security_audit.assert_awaited_once()
